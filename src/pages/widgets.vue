@@ -8,6 +8,7 @@ import { storeToRefs } from 'pinia'
 import { getAllWebviewWindows } from '@tauri-apps/api/webviewWindow'
 import { appDataDir, resolve } from '@tauri-apps/api/path'
 import { openPath } from '@tauri-apps/plugin-opener'
+import { onMounted } from 'vue'
 
 const pluginMgr = usePluginManager()
 const { plugins } = storeToRefs(pluginMgr)
@@ -17,7 +18,27 @@ const getWidgetWindowName = (plugin: PluginManifest) => {
   return `widget_${plugin.id}`
 }
 
+const syncPluginStates = async () => {
+  const windows = await getAllWebviewWindows()
+  const activeLabels = new Set(windows.map(w => w.label))
+  plugins.value = plugins.value.map((p) => ({
+    ...p,
+    isActivated: activeLabels.has(getWidgetWindowName(p)),
+  }))
+}
+
 const onActivateWidget = async (plugin: PluginManifest) => {
+  // 检查窗口是否已存在，如果存在则仅同步状态
+  const existingWindows = await getAllWebviewWindows()
+  const label = getWidgetWindowName(plugin)
+  if (existingWindows.some(w => w.label === label)) {
+    plugins.value = plugins.value.map((p) => ({
+      ...p,
+      isActivated: p.id === plugin.id ? true : p.isActivated,
+    }))
+    return
+  }
+
   const baseURL = await invoke<{
     builtin: string
     user: string
@@ -31,7 +52,7 @@ const onActivateWidget = async (plugin: PluginManifest) => {
 
   console.log(url)
 
-  const window = new Window(getWidgetWindowName(plugin), {
+  const window = new Window(label, {
     width: plugin.widgetMeta?.width || 100,
     height: plugin.widgetMeta?.height || 100,
     resizable: false,
@@ -43,7 +64,7 @@ const onActivateWidget = async (plugin: PluginManifest) => {
   })
 
   window.once('tauri://created', () => {
-    const webview = new Webview(window, getWidgetWindowName(plugin), {
+    const webview = new Webview(window, label, {
       url,
       x: 0,
       y: 0,
@@ -52,12 +73,10 @@ const onActivateWidget = async (plugin: PluginManifest) => {
       transparent: true,
       acceptFirstMouse: true,
     })
-    plugins.value = plugins.value.map((p) => {
-      if (p.name === plugin.name) {
-        p.isActivated = !p.isActivated
-      }
-      return p
-    })
+    plugins.value = plugins.value.map((p) => ({
+      ...p,
+      isActivated: p.id === plugin.id ? true : p.isActivated,
+    }))
     webview.once('tauri://error', (e) => {
       snackbar.add({
         type: 'error',
@@ -77,12 +96,10 @@ const onCloseWidget = async (plugin: PluginManifest) => {
   ;(await getAllWebviewWindows()).forEach((webview) => {
     if (webview.label === getWidgetWindowName(plugin)) {
       webview.destroy()
-      plugins.value = plugins.value.map((p) => {
-        if (p.id === plugin.id) {
-          p.isActivated = !p.isActivated
-        }
-        return p
-      })
+      plugins.value = plugins.value.map((p) => ({
+        ...p,
+        isActivated: p.id === plugin.id ? false : p.isActivated,
+      }))
     }
   })
 }
@@ -101,6 +118,15 @@ const onOpenPluginDir = async () => {
     })
   })
 }
+
+const onRefreshPlugins = async () => {
+  await pluginMgr.refreshPlugins()
+  await syncPluginStates()
+}
+
+onMounted(() => {
+  syncPluginStates()
+})
 </script>
 
 <template>
@@ -110,7 +136,7 @@ const onOpenPluginDir = async () => {
         <DevOnly>
           <button
             class="btn outline"
-            @click="pluginMgr.refreshPlugins"
+            @click="onRefreshPlugins"
           >
             刷新组件
           </button>
