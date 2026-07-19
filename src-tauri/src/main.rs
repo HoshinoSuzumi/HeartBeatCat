@@ -708,7 +708,7 @@ async fn main() {
                     let rp = resource_plugins.clone();
                     let ap = appdata_plugins.clone();
 
-                    // /p/{id}/{*path} — 统一插件静态文件路由
+                    // /p/{id}/{*path} — 统一插件静态文件路由（放在最后作为 fallback）
                     let plugin_files = warp::path("p")
                         .and(warp::path::param::<String>())
                         .and(warp::path::tail())
@@ -717,6 +717,10 @@ async fn main() {
                             let ap = ap.clone();
                             async move {
                                 let tail_str = tail.as_str();
+                                // 排除 API 路径，让它们被前面的路由处理
+                                if tail_str == "events" || tail_str == "config" {
+                                    return Err(warp::reject::not_found());
+                                }
                                 let appdata_file = ap.join(&plugin_id).join(tail_str);
                                 let _resource_file = rp.join(&plugin_id).join(tail_str);
 
@@ -730,17 +734,14 @@ async fn main() {
                                 match tokio::fs::read(&full).await {
                                     Ok(data) => {
                                         let mime = mime_guess::from_path(tail_str).first_or_octet_stream();
-                                        Ok::<_, Infallible>(warp::http::Response::builder()
+                                        Ok::<_, warp::Rejection>(warp::http::Response::builder()
                                             .header("Content-Type", mime.to_string())
                                             .header("Access-Control-Allow-Origin", "*")
                                             .body(data)
                                             .unwrap())
                                     }
                                     Err(_) => {
-                                        Ok::<_, Infallible>(warp::http::Response::builder()
-                                            .status(404)
-                                            .body(b"Not Found".to_vec())
-                                            .unwrap())
+                                        Err(warp::reject::not_found())
                                     }
                                 }
                             }
@@ -820,7 +821,7 @@ async fn main() {
                                 .unwrap()
                         });
 
-                    let routes = plugin_files.or(sse_route).or(config_route).or(status_route);
+                    let routes = sse_route.or(config_route).or(status_route).or(plugin_files);
 
                     warp::serve(routes).run(([127, 0, 0, 1], 9918)).await;
                 });
