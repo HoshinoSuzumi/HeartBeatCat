@@ -35,11 +35,17 @@ listen('device-disconnected', (_) => {
     type: 'warning',
     text: '设备已断开连接',
   })
+  store.resetAutoConnectFlag()
   sessionStore.endSession()
 })
 
-listen('device-connected', (_) => {
+listen('device-connected', (event) => {
   console.log("[App] device-connected 事件触发")
+  // 将已连接的设备记录为已知设备
+  const device = event.payload as Device
+  if (device) {
+    store.recordKnownDevice(device)
+  }
   sessionStore.startSession()
 })
 

@@ -6,6 +6,10 @@ const props = defineProps({
   device: {
     type: Object as PropType<Device>,
     required: true
+  },
+  isKnown: {
+    type: Boolean,
+    default: false
   }
 });
 const emit = defineEmits(['connect']);
@@ -22,6 +26,7 @@ const displayAddress = computed(() => {
       <div class="flex flex-col gap-1">
         <span class="flex items-center gap-1 text-sm leading-none">
           {{ device.name }}
+          <span v-if="isKnown" class="text-2xs text-primary-500 bg-primary-100 px-1.5 py-0.5 rounded-full font-semibold">已知</span>
         </span>
         <span class="flex items-center gap-1 text-2xs text-neutral-400">
           <SignalIndicator :rssi="device.rssi" />

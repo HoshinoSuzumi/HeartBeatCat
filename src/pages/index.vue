@@ -11,6 +11,20 @@ const is_connecting = ref(false);
 
 const scanning_devices = computed(() => store.scanning_devices.filter(d => d.name !== 'Unknown'));
 
+/** 已发现的已知设备（按 MAC 地址匹配） */
+const knownScanningDevices = computed(() =>
+  scanning_devices.value.filter(d => store.isKnownDevice(d))
+);
+
+/** 新发现设备 */
+const newScanningDevices = computed(() =>
+  scanning_devices.value.filter(d => !store.isKnownDevice(d))
+);
+
+const hasBothSections = computed(() =>
+  knownScanningDevices.value.length > 0 && newScanningDevices.value.length > 0
+);
+
 async function connect(peripheral_id: String) {
   is_connecting.value = true;
   store.stopScan();
@@ -82,11 +96,29 @@ onMounted(() => {
         <span class="text-sm font-semibold text-neutral-400">正在连接到设备</span>
       </div>
       <div class="p-4" v-else>
-        <div class="flex flex-col gap-2 relative">
-          <TransitionGroup name="scan-device">
-            <ScanningDevice v-for="(device, _) in scanning_devices.filter(d => d.name !== 'Unknown')"
-              :key="device.peripheral_id" :device="device" @connect="connect" />
-          </TransitionGroup>
+        <div class="flex flex-col" :class="hasBothSections ? 'gap-6' : 'gap-2'">
+          <!-- 已知设备 -->
+          <div v-if="knownScanningDevices.length > 0">
+            <div class="flex items-center gap-1.5 mb-2 px-1">
+              <TablerHistory class="icon text-sm text-primary-500" />
+              <span class="text-xs font-semibold text-neutral-500">已知设备</span>
+            </div>
+            <TransitionGroup name="scan-device" tag="div" class="flex flex-col gap-2">
+              <ScanningDevice v-for="device in knownScanningDevices"
+                :key="device.peripheral_id" :device="device" :is-known="true" @connect="connect" />
+            </TransitionGroup>
+          </div>
+          <!-- 发现设备 -->
+          <div v-if="newScanningDevices.length > 0">
+            <div class="flex items-center gap-1.5 mb-2 px-1">
+              <TablerSearch class="icon text-sm text-neutral-400" />
+              <span class="text-xs font-semibold text-neutral-500">发现设备</span>
+            </div>
+            <TransitionGroup name="scan-device" tag="div" class="flex flex-col gap-2">
+              <ScanningDevice v-for="device in newScanningDevices"
+                :key="device.peripheral_id" :device="device" @connect="connect" />
+            </TransitionGroup>
+          </div>
         </div>
       </div>
     </Transition>
