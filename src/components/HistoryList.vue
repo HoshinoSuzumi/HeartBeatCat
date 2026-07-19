@@ -54,7 +54,7 @@ function openSession(id: string) {
         <span class="text-2xs text-neutral-400">{{ formatDuration(s) }}</span>
       </div>
       <div class="flex items-center gap-2 mt-1">
-        <span class="text-2xs text-neutral-400">{{ s.pointCount }} 个数据点</span>
+        <span class="text-2xs text-neutral-400">{{ s.pointCount }} 个采样</span>
         <span
           v-if="!s.endedAt"
           class="px-1 py-0.5 rounded text-2xs bg-emerald-100 text-emerald-600 font-medium"
