@@ -14,8 +14,8 @@ let isAnimating = false
 function animateIn() {
   isAnimating = true
   const tl = gsap.timeline({ onComplete: () => { isAnimating = false } })
-  tl.fromTo(backdropRef.value, { opacity: 0 }, { opacity: 1, duration: 0.18, ease: "power2.out" }, 0)
-  tl.fromTo(panelRef.value, { x: "100%" }, { x: "0%", duration: 0.28, ease: "power3.out" }, 0)
+  tl.fromTo(backdropRef.value!, { opacity: 0 }, { opacity: 1, duration: 0.18, ease: "power2.out" }, 0)
+  tl.fromTo(panelRef.value!, { x: "100%" }, { x: "0%", duration: 0.28, ease: "power3.out" }, 0)
 }
 
 function animateOut(): Promise<void> {
@@ -28,8 +28,8 @@ function animateOut(): Promise<void> {
         resolve()
       },
     })
-    tl.to(panelRef.value, { x: "100%", duration: 0.22, ease: "power3.in" }, 0)
-    tl.to(backdropRef.value, { opacity: 0, duration: 0.15, ease: "power2.in" }, 0)
+    tl.to(panelRef.value!, { x: "100%", duration: 0.22, ease: "power3.in" }, 0)
+    tl.to(backdropRef.value!, { opacity: 0, duration: 0.15, ease: "power2.in" }, 0)
   })
 }
 

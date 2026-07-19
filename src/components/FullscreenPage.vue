@@ -14,16 +14,16 @@ const panelRef = ref<HTMLElement>()
 // ── 进入动画：遮罩淡入 + 面板从底部滑入 ──
 onMounted(() => {
   const tl = gsap.timeline()
-  tl.fromTo(backdropRef.value, { opacity: 0 }, { opacity: 1, duration: 0.2, ease: "power2.out" }, 0)
-  tl.fromTo(panelRef.value, { y: "100%" }, { y: "0%", duration: 0.32, ease: "power3.out" }, 0)
+  tl.fromTo(backdropRef.value!, { opacity: 0 }, { opacity: 1, duration: 0.2, ease: "power2.out" }, 0)
+  tl.fromTo(panelRef.value!, { y: "100%" }, { y: "0%", duration: 0.32, ease: "power3.out" }, 0)
 })
 
 // ── 退出动画：遮罩淡出 + 面板滑回底部 ──
 function animateOut(): Promise<void> {
   return new Promise((resolve) => {
     const tl = gsap.timeline({ onComplete: resolve })
-    tl.to(panelRef.value, { y: "100%", duration: 0.25, ease: "power3.in" }, 0)
-    tl.to(backdropRef.value, { opacity: 0, duration: 0.2, ease: "power2.in" }, 0.05)
+    tl.to(panelRef.value!, { y: "100%", duration: 0.25, ease: "power3.in" }, 0)
+    tl.to(backdropRef.value!, { opacity: 0, duration: 0.2, ease: "power2.in" }, 0.05)
   })
 }
 

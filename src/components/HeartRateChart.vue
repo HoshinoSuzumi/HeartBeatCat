@@ -220,8 +220,6 @@ const drawSmoothCurve = (
 ) => {
   if (pts.length === 0) return
 
-  const baselineY = p + chartH
-
   // 按值是否为 0 拆分为连续段
   interface Seg { start: number; end: number; isZero: boolean }
   const segments: Seg[] = []
@@ -454,8 +452,8 @@ const drawTooltip = (
 // ── 网格线 + Y 轴标签 ──
 const drawGrid = (
   ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
+  _w: number,
+  _h: number,
   p: number,
   chartW: number,
   chartH: number,
