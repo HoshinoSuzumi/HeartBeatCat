@@ -52,6 +52,7 @@ export interface LoadedPlugin {
 export interface PluginRuntimeState {
   widgetActive: boolean
   streamingActive: boolean
+  clickThrough: boolean
   config: Record<string, unknown>
 }
 

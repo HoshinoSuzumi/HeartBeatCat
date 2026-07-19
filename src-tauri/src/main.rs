@@ -440,6 +440,7 @@ async fn open_widget(
         .inner_size(width, height)
         .resizable(false)
         .decorations(false)
+        .shadow(false)
         .transparent(transparent)
         .always_on_top(always_on_top)
         .build()
@@ -458,6 +459,19 @@ async fn close_widget(
     let label = format!("widget_{}", plugin_id);
     if let Some(window) = app_handle.get_webview_window(&label) {
         window.close().map_err(|e| e.to_string())?;
+    }
+    Ok(true)
+}
+
+#[tauri::command]
+async fn set_widget_click_through(
+    plugin_id: String,
+    click_through: bool,
+    app_handle: AppHandle,
+) -> Result<bool, String> {
+    let label = format!("widget_{}", plugin_id);
+    if let Some(window) = app_handle.get_webview_window(&label) {
+        let _ = window.set_ignore_cursor_events(click_through);
     }
     Ok(true)
 }
@@ -697,6 +711,7 @@ async fn main() {
             get_widget_url,
             open_widget,
             close_widget,
+            set_widget_click_through,
             start_streaming,
             stop_streaming,
             get_streaming_url,

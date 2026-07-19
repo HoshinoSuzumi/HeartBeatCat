@@ -257,6 +257,18 @@ const refreshAll = async () => {
 }
 
 // ── 设置管理 ──
+const onToggleClickThrough = async (plugin: { manifest: PluginManifest; state: any }) => {
+  const id = plugin.manifest.plugin.id
+  const next = !plugin.state.clickThrough
+  pluginMgr.setClickThrough(id, next)
+  try {
+    await invoke('set_widget_click_through', { pluginId: id, clickThrough: next })
+  } catch (e) {
+    pluginMgr.setClickThrough(id, !next)
+    snackbar.add({ type: 'error', text: `设置失败: ${e}` })
+  }
+}
+
 const onSettingsUpdate = async (config: Record<string, unknown>) => {
   if (!selectedId.value) return
   pluginMgr.updateConfig(selectedId.value, config)
@@ -388,7 +400,6 @@ onMounted(() => {
                 推流插件
               </button>
               <button
-                v-if="selectedPlugin.manifest.settings"
                 class="px-3 py-1.5 text-xs font-medium transition-colors border-b-2 -mb-px"
                 :class="activeTab === 'settings'
                   ? 'border-primary-400 text-primary-500'
@@ -453,12 +464,35 @@ onMounted(() => {
             </div>
 
             <!-- Settings Tab -->
-            <div v-if="activeTab === 'settings' && selectedPlugin.manifest.settings" class="space-y-4">
-              <PluginSettingsForm
-                :schema="(selectedPlugin.manifest.settings as any)"
-                :config="selectedPlugin.state.config"
-                @update="onSettingsUpdate"
-              />
+            <div v-if="activeTab === 'settings'" class="space-y-4">
+              <!-- 通用设置 -->
+              <div v-if="selectedPlugin.manifest.widget" class="border border-neutral-200 rounded p-3">
+                <h4 class="text-xs font-semibold text-neutral-600 mb-2">通用设置</h4>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    class="rounded"
+                    :checked="selectedPlugin.state.clickThrough"
+                    @change="onToggleClickThrough(selectedPlugin)"
+                  />
+                  <span class="text-xs text-neutral-600">点击穿透</span>
+                </label>
+                <p class="text-2xs text-neutral-400 mt-1">开启后鼠标事件将穿透组件窗口，无法拖拽和交互</p>
+              </div>
+
+              <!-- 插件自定义设置 -->
+              <div v-if="selectedPlugin.manifest.settings" class="border border-neutral-200 rounded p-3">
+                <h4 class="text-xs font-semibold text-neutral-600 mb-2">插件设置</h4>
+                <PluginSettingsForm
+                  :schema="(selectedPlugin.manifest.settings as any)"
+                  :config="selectedPlugin.state.config"
+                  @update="onSettingsUpdate"
+                />
+              </div>
+
+              <div v-if="!selectedPlugin.manifest.widget && !selectedPlugin.manifest.settings" class="text-xs text-neutral-400">
+                此插件没有可配置项
+              </div>
             </div>
           </div>
         </template>

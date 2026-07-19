@@ -7,6 +7,7 @@ import type { LoadedPlugin, PluginManifest, PluginRuntimeState } from "../types/
 const DEFAULT_STATE: PluginRuntimeState = {
   widgetActive: false,
   streamingActive: false,
+  clickThrough: false,
   config: {},
 }
 
@@ -93,6 +94,12 @@ export const usePluginManager = defineStore('pluginManager', () => {
   }
 
   // ── 配置管理 ──
+  const setClickThrough = (pluginId: string, clickThrough: boolean) => {
+    const state = getState(pluginId)
+    state.clickThrough = clickThrough
+    states.value[pluginId] = state
+  }
+
   const updateConfig = (pluginId: string, config: Record<string, unknown>) => {
     const state = getState(pluginId)
     state.config = { ...state.config, ...config }
@@ -117,6 +124,7 @@ export const usePluginManager = defineStore('pluginManager', () => {
     setWidgetActive,
     setStreamingActive,
     updateConfig,
+    setClickThrough,
     getPlugin,
   }
 })
