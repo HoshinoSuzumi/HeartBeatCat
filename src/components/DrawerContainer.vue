@@ -1,13 +1,24 @@
 <script lang="ts" setup>
 import { computed, ref } from 'vue'
 import { useBrcatStore } from '../stores';
+import { useHeartRateHistoryStore } from '../stores/heartRateHistory'
 import MarqueeText from './MarqueeText.vue';
 
 const store = useBrcatStore();
+const hrStore = useHeartRateHistoryStore()
 
 const deviceName = computed(() =>
   store.is_connected ? (store.connected_device?.name ?? '') : '未连接'
 )
+
+const hrStats = computed(() => {
+  const s = hrStore.stats
+  // stats 中的 latest/max/min 是当前会话全部数据，直接用即可
+  return {
+    max: s.max > 0 ? s.max : null,
+    min: s.max > 0 ? s.min : null,
+  }
+})
 
 const navList = ref([
   { title: '设备连接', path: '/' },
@@ -27,8 +38,8 @@ const navList = ref([
       </div>
       <div>
         <Transition name="indicator" mode="out-in">
-          <div v-if="store.is_connected"
-            class="flex px-2 py-0.5 gap-1 justify-between items-center bg-neutral-200 border-b border-neutral-300">
+          <router-link v-if="store.is_connected" to="/charts"
+            class="flex px-2 py-0.5 gap-1 justify-between items-center bg-neutral-200 border-b border-neutral-300 cursor-pointer hover:bg-neutral-300/50 transition-colors">
             <span class="inline-flex items-center gap-0.5 text-2xl text-primary font-bold">
               <TablerActivityHeartbeat class="text-base" />
               {{ store.current_heart_rate || '--' }}
@@ -36,14 +47,14 @@ const navList = ref([
             <span class="flex flex-col gap-0.5 text-neutral-400">
               <span class="flex items-center gap-1 text-xs leading-none">
                 <TablerCaretUpFilled />
-                <span>{{ '--' }}</span>
+                <span class="tabular-nums">{{ hrStats.max ?? '--' }}</span>
               </span>
               <span class="flex items-center gap-1 text-xs leading-none">
                 <TablerCaretDownFilled />
-                <span>{{ '--' }}</span>
+                <span class="tabular-nums">{{ hrStats.min ?? '--' }}</span>
               </span>
             </span>
-          </div>
+          </router-link>
         </Transition>
         <div class="status">
           <TablerBluetoothConnected v-if="store.is_connected" class="icon text-sm block -mt-0.5 text-emerald-500" />
