@@ -8,6 +8,7 @@ const DEFAULT_STATE: PluginRuntimeState = {
   widgetActive: false,
   streamingActive: false,
   clickThrough: false,
+  opacity: 1.0,
   config: {},
 }
 
@@ -100,6 +101,12 @@ export const usePluginManager = defineStore('pluginManager', () => {
     states.value[pluginId] = state
   }
 
+  const setOpacity = (pluginId: string, opacity: number) => {
+    const state = getState(pluginId)
+    state.opacity = opacity
+    states.value[pluginId] = state
+  }
+
   const updateConfig = (pluginId: string, config: Record<string, unknown>) => {
     const state = getState(pluginId)
     state.config = { ...state.config, ...config }
@@ -125,6 +132,7 @@ export const usePluginManager = defineStore('pluginManager', () => {
     setStreamingActive,
     updateConfig,
     setClickThrough,
+    setOpacity,
     getPlugin,
   }
 })

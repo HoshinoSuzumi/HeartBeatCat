@@ -464,6 +464,20 @@ async fn close_widget(
 }
 
 #[tauri::command]
+async fn set_widget_opacity(
+    plugin_id: String,
+    opacity: f64,
+    app_handle: AppHandle,
+) -> Result<bool, String> {
+    let label = format!("widget_{}", plugin_id);
+    if let Some(webview) = app_handle.get_webview_window(&label) {
+        let js = format!("document.documentElement.style.opacity = '{}'", opacity);
+        let _ = webview.eval(&js);
+    }
+    Ok(true)
+}
+
+#[tauri::command]
 async fn set_widget_click_through(
     plugin_id: String,
     click_through: bool,
@@ -712,6 +726,7 @@ async fn main() {
             open_widget,
             close_widget,
             set_widget_click_through,
+            set_widget_opacity,
             start_streaming,
             stop_streaming,
             get_streaming_url,

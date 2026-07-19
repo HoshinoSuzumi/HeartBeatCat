@@ -2,8 +2,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { usePluginManager } from '../stores/plugin'
-import { useSnackbar } from 'vue3-snackbar'
 import { getAllWebviewWindows } from '@tauri-apps/api/webviewWindow'
+import { useSnackbar } from 'vue3-snackbar'
 import { appDataDir, resolve } from '@tauri-apps/api/path'
 import { openPath } from '@tauri-apps/plugin-opener'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -269,6 +269,17 @@ const onToggleClickThrough = async (plugin: { manifest: PluginManifest; state: a
   }
 }
 
+const onChangeOpacity = async (plugin: { manifest: PluginManifest; state: any }, value: number) => {
+  const id = plugin.manifest.plugin.id
+  pluginMgr.setOpacity(id, value)
+  try {
+    await invoke('set_widget_opacity', { pluginId: id, opacity: value })
+  } catch (e) {
+    pluginMgr.setOpacity(id, 1.0)
+    snackbar.add({ type: 'error', text: `设置透明度失败: ${e}` })
+  }
+}
+
 const onSettingsUpdate = async (config: Record<string, unknown>) => {
   if (!selectedId.value) return
   pluginMgr.updateConfig(selectedId.value, config)
@@ -468,16 +479,31 @@ onMounted(() => {
               <!-- 通用设置 -->
               <div v-if="selectedPlugin.manifest.widget" class="border border-neutral-200 rounded p-3">
                 <h4 class="text-xs font-semibold text-neutral-600 mb-2">通用设置</h4>
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    class="rounded"
-                    :checked="selectedPlugin.state.clickThrough"
-                    @change="onToggleClickThrough(selectedPlugin)"
-                  />
-                  <span class="text-xs text-neutral-600">点击穿透</span>
-                </label>
-                <p class="text-2xs text-neutral-400 mt-1">开启后鼠标事件将穿透组件窗口，无法拖拽和交互</p>
+                <div class="space-y-2">
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      class="rounded"
+                      :checked="selectedPlugin.state.clickThrough"
+                      @change="onToggleClickThrough(selectedPlugin)"
+                    />
+                    <span class="text-xs text-neutral-600">点击穿透</span>
+                  </label>
+                  <p class="text-2xs text-neutral-400">开启后鼠标事件将穿透组件窗口</p>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-neutral-600 w-16">透明度</span>
+                    <input
+                      type="range"
+                      min="0.2"
+                      max="1.0"
+                      step="0.05"
+                      class="flex-1"
+                      :value="selectedPlugin.state.opacity"
+                      @input="onChangeOpacity(selectedPlugin, Number(($event.target as HTMLInputElement).value))"
+                    />
+                    <span class="text-xs text-neutral-400 w-8 text-right">{{ Math.round(selectedPlugin.state.opacity * 100) }}%</span>
+                  </div>
+                </div>
               </div>
 
               <!-- 插件自定义设置 -->

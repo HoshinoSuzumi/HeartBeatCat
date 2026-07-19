@@ -53,6 +53,7 @@ export interface PluginRuntimeState {
   widgetActive: boolean
   streamingActive: boolean
   clickThrough: boolean
+  opacity: number
   config: Record<string, unknown>
 }
 
