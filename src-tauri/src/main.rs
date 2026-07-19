@@ -448,6 +448,43 @@ async fn open_widget(
 
     let _ = window.show();
     let _ = window.set_size(tauri::LogicalSize::new(width, height));
+
+    // 恢复保存的位置和运行时设置
+    let config_dir = app_handle.path().resolve("plugin-config", BaseDirectory::AppData).unwrap();
+    let config_path = config_dir.join(format!("{}.json", plugin_id));
+    if config_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&config_path) {
+            if let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&content) {
+                if let Some(rt) = cfg["_runtime"].as_object() {
+                    // 位置
+                    let x = rt.get("x").and_then(|v| v.as_f64()).unwrap_or(-1.0);
+                    let y = rt.get("y").and_then(|v| v.as_f64()).unwrap_or(-1.0);
+                    if x >= 0.0 && y >= 0.0 {
+                        let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+                    }
+                    // 透明度
+                    if let Some(opacity) = rt.get("opacity").and_then(|v| v.as_f64()) {
+                        let js = format!("document.documentElement.style.opacity = '{}'", opacity);
+                        let _ = window.eval(&js);
+                    }
+                    // 缩放
+                    if let Some(scale) = rt.get("scale").and_then(|v| v.as_f64()) {
+                        if scale != 1.0 {
+                            let _ = window.set_size(tauri::LogicalSize::new(
+                                width * scale,
+                                height * scale,
+                            ));
+                        }
+                    }
+                    // 点击穿透
+                    if let Some(ct) = rt.get("clickThrough").and_then(|v| v.as_bool()) {
+                        let _ = window.set_ignore_cursor_events(ct);
+                    }
+                }
+            }
+        }
+    }
+
     Ok(true)
 }
 
@@ -458,6 +495,26 @@ async fn close_widget(
 ) -> Result<bool, String> {
     let label = format!("widget_{}", plugin_id);
     if let Some(window) = app_handle.get_webview_window(&label) {
+        // 保存窗口位置
+        if let Ok(pos) = window.outer_position() {
+            let config_dir = app_handle.path().resolve("plugin-config", BaseDirectory::AppData).unwrap();
+            let _ = std::fs::create_dir_all(&config_dir);
+            let config_path = config_dir.join(format!("{}.json", plugin_id));
+            let mut cfg = if config_path.exists() {
+                std::fs::read_to_string(&config_path)
+                    .ok()
+                    .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+                    .unwrap_or(serde_json::json!({}))
+            } else {
+                serde_json::json!({})
+            };
+            if cfg["_runtime"].is_null() {
+                cfg["_runtime"] = serde_json::json!({});
+            }
+            cfg["_runtime"]["x"] = serde_json::json!(pos.x);
+            cfg["_runtime"]["y"] = serde_json::json!(pos.y);
+            let _ = std::fs::write(&config_path, serde_json::to_string_pretty(&cfg).unwrap_or_default());
+        }
         window.close().map_err(|e| e.to_string())?;
     }
     Ok(true)
@@ -556,7 +613,37 @@ async fn set_plugin_config(
     let config_dir = app_handle.path().resolve("plugin-config", BaseDirectory::AppData).unwrap();
     std::fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
     let config_path = config_dir.join(format!("{}.json", plugin_id));
-    let content = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
+
+    // 读取并合并已有配置
+    let mut merged = if config_path.exists() {
+        let content = std::fs::read_to_string(&config_path).unwrap_or_default();
+        serde_json::from_str::<serde_json::Value>(&content).unwrap_or(serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+
+    // 深度合并：新值覆盖旧值。对 _runtime 做字段级合并
+    if let Some(new_rt) = config.get("_runtime") {
+        if merged["_runtime"].is_null() {
+            merged["_runtime"] = serde_json::json!({});
+        }
+        if let (Some(dst), Some(src)) = (merged["_runtime"].as_object_mut(), new_rt.as_object()) {
+            for (k, v) in src {
+                dst.insert(k.clone(), v.clone());
+            }
+        }
+    }
+
+    // 普通字段直接覆盖
+    if let Some(obj) = config.as_object() {
+        for (k, v) in obj {
+            if k != "_runtime" {
+                merged[k] = v.clone();
+            }
+        }
+    }
+
+    let content = serde_json::to_string_pretty(&merged).map_err(|e| e.to_string())?;
     std::fs::write(&config_path, content).map_err(|e| e.to_string())?;
     Ok(true)
 }

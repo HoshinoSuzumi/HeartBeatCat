@@ -257,12 +257,29 @@ const refreshAll = async () => {
 }
 
 // ── 设置管理 ──
+const saveRuntimeConfig = async (pluginId: string) => {
+  const state = pluginMgr.getState(pluginId)
+  try {
+    await invoke('set_plugin_config', {
+      pluginId,
+      config: {
+        _runtime: {
+          clickThrough: state.clickThrough,
+          opacity: state.opacity,
+          scale: state.scale,
+        },
+      },
+    })
+  } catch { /* ignore */ }
+}
+
 const onToggleClickThrough = async (plugin: { manifest: PluginManifest; state: any }) => {
   const id = plugin.manifest.plugin.id
   const next = !plugin.state.clickThrough
   pluginMgr.setClickThrough(id, next)
   try {
     await invoke('set_widget_click_through', { pluginId: id, clickThrough: next })
+    saveRuntimeConfig(id)
   } catch (e) {
     pluginMgr.setClickThrough(id, !next)
     snackbar.add({ type: 'error', text: `设置失败: ${e}` })
@@ -274,6 +291,7 @@ const onChangeOpacity = async (plugin: { manifest: PluginManifest; state: any },
   pluginMgr.setOpacity(id, value)
   try {
     await invoke('set_widget_opacity', { pluginId: id, opacity: value })
+    saveRuntimeConfig(id)
   } catch (e) {
     pluginMgr.setOpacity(id, 1.0)
     snackbar.add({ type: 'error', text: `设置透明度失败: ${e}` })
@@ -292,6 +310,7 @@ const onChangeScale = async (plugin: { manifest: PluginManifest; state: any }, v
       baseHeight: w.window.height,
       scale: value,
     })
+    saveRuntimeConfig(id)
   } catch (e) {
     snackbar.add({ type: 'error', text: `设置缩放失败: ${e}` })
   }
@@ -307,13 +326,6 @@ const onSettingsUpdate = async (config: Record<string, unknown>) => {
   }
 }
 
-// ── 能力标签 ──
-const capabilityBadges = (m: PluginManifest) => {
-  const badges: string[] = []
-  if (m.widget) badges.push('桌面组件')
-  if (m.streaming) badges.push('推流插件')
-  return badges
-}
 
 onMounted(() => {
   pluginMgr.refreshPlugins()
@@ -349,7 +361,7 @@ onMounted(() => {
           <div class="flex items-center gap-1.5 mt-1">
             <span class="text-xs text-neutral-400">v{{ item.manifest.plugin.version }}</span>
             <!-- <span
-              v-for="badge in capabilityBadges(item.manifest)"
+              v-for="badge in (item.manifest.widget ? ['桌面'] : []).concat(item.manifest.streaming ? ['推流'] : [])"
               :key="badge"
               class="text-2xs px-1 py-px rounded"
               :class="badge === '桌面组件' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'"

@@ -79,6 +79,30 @@ export const usePluginManager = defineStore('pluginManager', () => {
     addIfNew(builtinPlugins, true)
 
     plugins.value = allLoaded
+
+    // 恢复运行时配置
+    await restoreRuntimeConfigs()
+  }
+
+  const restoreRuntimeConfigs = async () => {
+    const configDir = await path.join(await path.appDataDir(), 'plugin-config')
+    for (const p of plugins.value) {
+      const id = p.manifest.plugin.id
+      const configPath = await path.join(configDir, `${id}.json`)
+      try {
+        if (await exists(configPath)) {
+          const raw = await readTextFile(configPath)
+          const cfg = JSON.parse(raw)
+          if (cfg._runtime) {
+            const state = getState(id)
+            if (cfg._runtime.clickThrough !== undefined) state.clickThrough = cfg._runtime.clickThrough
+            if (cfg._runtime.opacity !== undefined) state.opacity = cfg._runtime.opacity
+            if (cfg._runtime.scale !== undefined) state.scale = cfg._runtime.scale
+            states.value[id] = state
+          }
+        }
+      } catch { /* ignore */ }
+    }
   }
 
   // ── Widget 状态管理 ──
