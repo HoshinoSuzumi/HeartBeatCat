@@ -695,6 +695,13 @@ async fn install_plugin(
     let plugin_name = manifest["plugin"]["name"].as_str().unwrap_or(&plugin_id);
     let new_version = manifest["plugin"]["version"].as_str().unwrap_or("0.0.0");
 
+    // ── 内置插件冲突检测：不允许安装与内置插件 ID 相同的插件 ──
+    let resource_plugins = app_handle.path().resolve("plugins", BaseDirectory::Resource).unwrap();
+    let builtin_manifest_path = resource_plugins.join(&plugin_id).join("hbcat-manifest.json");
+    if builtin_manifest_path.exists() {
+        return Err(format!("BUILTIN:{}", plugin_name));
+    }
+
     // ── 版本冲突检测 ──
     let target_dir = plugins_dir.join(&plugin_id);
     let existing_manifest_path = target_dir.join("hbcat-manifest.json");

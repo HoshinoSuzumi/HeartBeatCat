@@ -172,6 +172,9 @@ const doInstall = async (filePath: string, force = false) => {
     const msg = String(e)
     if (msg.startsWith('SAME_VERSION:')) {
       snackbar.add({ type: 'warning', text: `已安装相同版本 v${msg.replace('SAME_VERSION:', '')}` })
+    } else if (msg.startsWith('BUILTIN:')) {
+      const name = msg.replace('BUILTIN:', '')
+      snackbar.add({ type: 'warning', text: `「${name}」是内置插件，无法手动安装` })
     } else {
       snackbar.add({ type: 'error', text: `安装失败: ${msg}` })
     }
