@@ -334,7 +334,7 @@ onMounted(() => {
 
     <div class="flex h-full bg-white">
       <!-- ===== 左侧插件列表 ===== -->
-      <div class="w-[220px] border-r border-neutral-200 overflow-y-auto flex-shrink-0">
+      <div class="w-[200px] border-r border-neutral-200 overflow-y-auto flex-shrink-0">
         <div
           v-for="item in pluginList"
           :key="item.manifest.plugin.id"
@@ -342,37 +342,22 @@ onMounted(() => {
           :class="{ 'bg-primary-50 border-l-2 border-l-primary-400': selectedId === item.manifest.plugin.id }"
           @click="selectPlugin(item.manifest.plugin.id)"
         >
-          <div class="flex items-center gap-1.5">
-            <span class="text-xs font-medium truncate">{{ item.manifest.plugin.name }}</span>
-            <span v-if="item.builtin" class="text-2xs px-1 py-px rounded bg-neutral-200 text-neutral-500">内置</span>
+          <div class="flex items-center gap-0.5">
+            <LucidePackage v-if="item.builtin" class="text-sm text-neutral-400 -mt-[2px]" />
+            <span class="text-sm font-medium truncate">{{ item.manifest.plugin.name }}</span>
           </div>
           <div class="flex items-center gap-1.5 mt-1">
-            <span class="text-2xs text-neutral-400">v{{ item.manifest.plugin.version }}</span>
-            <span
+            <span class="text-xs text-neutral-400">v{{ item.manifest.plugin.version }}</span>
+            <!-- <span
               v-for="badge in capabilityBadges(item.manifest)"
               :key="badge"
               class="text-2xs px-1 py-px rounded"
               :class="badge === '桌面组件' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'"
             >
               {{ badge === '桌面组件' ? '桌面' : '推流' }}
-            </span>
-          </div>
-          <!-- 状态指示 -->
-          <div class="flex items-center gap-2 mt-1.5">
-            <span v-if="item.manifest.widget" class="flex items-center gap-1 text-2xs">
-              <span
-                class="w-1.5 h-1.5 rounded-full"
-                :class="item.state.widgetActive ? 'bg-emerald-500' : 'bg-neutral-300'"
-              />
-              <span class="text-neutral-400">{{ item.state.widgetActive ? '已激活' : '未激活' }}</span>
-            </span>
-            <span v-if="item.manifest.streaming" class="flex items-center gap-1 text-2xs">
-              <span
-                class="w-1.5 h-1.5 rounded-full"
-                :class="item.state.streamingActive ? 'bg-emerald-500' : 'bg-neutral-300'"
-              />
-              <span class="text-neutral-400">{{ item.state.streamingActive ? '运行中' : '已停止' }}</span>
-            </span>
+            </span> -->
+            <SolarWidget2BoldDuotone v-if="item.manifest.widget" class="text-xs" :class="item.state.widgetActive ? 'text-blue-600' : 'text-neutral-400'" />
+            <SolarPlayStreamBold v-if="item.manifest.streaming" class="text-xs" :class="item.state.streamingActive ? 'text-emerald-600' : 'text-neutral-400'" />
           </div>
         </div>
 
