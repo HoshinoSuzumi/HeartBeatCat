@@ -221,4 +221,32 @@ body {
 .titlebar .icon {
   height: calc(var(--title-bar-height) - 6px);
 }
+
+#vue3-snackbar--container {
+  margin: 8px 8px 0;
+}
+
+.vue3-snackbar-message-wrapper {
+  width: 100%;
+}
+
+.vue3-snackbar-message.is-dense .vue3-snackbar-message-wrapper {
+  padding: 6px 10px;
+}
+
+.vue3-snackbar-message {
+  font-size: 14px !important;
+  min-width: auto !important;
+  max-width: 300px !important;
+  margin-bottom: 8px;
+}
+
+.vue3-snackbar-message-icon {
+  margin-right: 8px;
+}
+
+.vue3-snackbar-message-content {
+  width: auto;
+  margin-right: 8px;
+}
 </style>
