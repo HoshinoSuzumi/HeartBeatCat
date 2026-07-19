@@ -39,6 +39,9 @@ declare module 'vue' {
     TablerCaretUpFilled: typeof import('./src/components/icons/TablerCaretUpFilled.vue')['default']
     TablerDeviceWatch: typeof import('./src/components/icons/TablerDeviceWatch.vue')['default']
     TablerHeartbeat: typeof import('./src/components/icons/TablerHeartbeat.vue')['default']
+    TablerHistory: typeof import('./src/components/icons/TablerHistory.vue')['default']
     TablerReload: typeof import('./src/components/icons/TablerReload.vue')['default']
+    TablerSearch: typeof import('./src/components/icons/TablerSearch.vue')['default']
+    TipsCarousel: typeof import('./src/components/TipsCarousel.vue')['default']
   }
 }
