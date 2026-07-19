@@ -127,7 +127,7 @@ const installPlugin = async () => {
   try {
     const selected = await open({
       title: '选择插件包',
-      filters: [{ name: 'HeartbeatCat 插件', extensions: ['hbcat-plugin'] }],
+      filters: [{ name: 'HeartbeatCat 插件', extensions: ['brcp'] }],
       multiple: false,
     })
     if (!selected) return
