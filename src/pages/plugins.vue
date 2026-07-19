@@ -280,6 +280,23 @@ const onChangeOpacity = async (plugin: { manifest: PluginManifest; state: any },
   }
 }
 
+const onChangeScale = async (plugin: { manifest: PluginManifest; state: any }, value: number) => {
+  const id = plugin.manifest.plugin.id
+  const w = plugin.manifest.widget
+  if (!w) return
+  pluginMgr.setScale(id, value)
+  try {
+    await invoke('set_widget_scale', {
+      pluginId: id,
+      baseWidth: w.window.width,
+      baseHeight: w.window.height,
+      scale: value,
+    })
+  } catch (e) {
+    snackbar.add({ type: 'error', text: `设置缩放失败: ${e}` })
+  }
+}
+
 const onSettingsUpdate = async (config: Record<string, unknown>) => {
   if (!selectedId.value) return
   pluginMgr.updateConfig(selectedId.value, config)
@@ -502,8 +519,19 @@ onMounted(() => {
                       @input="onChangeOpacity(selectedPlugin, Number(($event.target as HTMLInputElement).value))"
                     />
                     <span class="text-xs text-neutral-400 w-8 text-right">{{ Math.round(selectedPlugin.state.opacity * 100) }}%</span>
-                  </div>
-                </div>
+                  </div>                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-neutral-600 w-16">缩放</span>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="5.0"
+                      step="0.1"
+                      class="flex-1"
+                      :value="selectedPlugin.state.scale"
+                      @input="onChangeScale(selectedPlugin, Number(($event.target as HTMLInputElement).value))"
+                    />
+                    <span class="text-xs text-neutral-400 w-8 text-right">{{ selectedPlugin.state.scale.toFixed(1) }}×</span>
+                  </div>                </div>
               </div>
 
               <!-- 插件自定义设置 -->

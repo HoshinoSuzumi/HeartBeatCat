@@ -478,6 +478,24 @@ async fn set_widget_opacity(
 }
 
 #[tauri::command]
+async fn set_widget_scale(
+    plugin_id: String,
+    base_width: f64,
+    base_height: f64,
+    scale: f64,
+    app_handle: AppHandle,
+) -> Result<bool, String> {
+    let label = format!("widget_{}", plugin_id);
+    if let Some(window) = app_handle.get_webview_window(&label) {
+        let _ = window.set_size(tauri::LogicalSize::new(
+            base_width * scale,
+            base_height * scale,
+        ));
+    }
+    Ok(true)
+}
+
+#[tauri::command]
 async fn set_widget_click_through(
     plugin_id: String,
     click_through: bool,
@@ -727,6 +745,7 @@ async fn main() {
             close_widget,
             set_widget_click_through,
             set_widget_opacity,
+            set_widget_scale,
             start_streaming,
             stop_streaming,
             get_streaming_url,

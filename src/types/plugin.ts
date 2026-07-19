@@ -54,6 +54,7 @@ export interface PluginRuntimeState {
   streamingActive: boolean
   clickThrough: boolean
   opacity: number
+  scale: number
   config: Record<string, unknown>
 }
 

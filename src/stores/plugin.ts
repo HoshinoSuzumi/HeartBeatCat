@@ -9,6 +9,7 @@ const DEFAULT_STATE: PluginRuntimeState = {
   streamingActive: false,
   clickThrough: false,
   opacity: 1.0,
+  scale: 1.0,
   config: {},
 }
 
@@ -107,6 +108,12 @@ export const usePluginManager = defineStore('pluginManager', () => {
     states.value[pluginId] = state
   }
 
+  const setScale = (pluginId: string, scale: number) => {
+    const state = getState(pluginId)
+    state.scale = scale
+    states.value[pluginId] = state
+  }
+
   const updateConfig = (pluginId: string, config: Record<string, unknown>) => {
     const state = getState(pluginId)
     state.config = { ...state.config, ...config }
@@ -133,6 +140,7 @@ export const usePluginManager = defineStore('pluginManager', () => {
     updateConfig,
     setClickThrough,
     setOpacity,
+    setScale,
     getPlugin,
   }
 })
