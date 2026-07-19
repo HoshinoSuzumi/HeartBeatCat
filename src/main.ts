@@ -19,6 +19,9 @@ const router = createRouter({
   routes,
 });
 
+// 全局禁用右键上下文菜单
+document.addEventListener("contextmenu", (e) => e.preventDefault());
+
 const pinia = createPinia();
 const app = createApp(App);
 app.config.globalProperties.$gsap = gsap;
