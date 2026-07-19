@@ -1,5 +1,6 @@
 import { path } from "@tauri-apps/api"
-import { BaseDirectory, exists, mkdir, readDir, readTextFile } from "@tauri-apps/plugin-fs"
+import { invoke } from "@tauri-apps/api/core"
+import { BaseDirectory, exists, mkdir, readDir, readTextFile, remove } from "@tauri-apps/plugin-fs"
 import { defineStore } from "pinia"
 import { ref } from "vue"
 import type { LoadedPlugin, PluginManifest, PluginRuntimeState } from "../types/plugin"
@@ -84,6 +85,29 @@ export const usePluginManager = defineStore('pluginManager', () => {
 
     // 恢复运行时配置
     await restoreRuntimeConfigs()
+
+    // 清理已卸载/删除插件的孤立配置文件
+    await cleanupOrphanedConfigs()
+  }
+
+  const cleanupOrphanedConfigs = async () => {
+    const configDir = 'plugin-config'
+    if (!await exists(configDir, { baseDir: BaseDirectory.AppData })) return
+
+    const entries = await readDir(configDir, { baseDir: BaseDirectory.AppData })
+    const validIds = new Set(plugins.value.map(p => p.manifest.plugin.id))
+
+    for (const entry of entries) {
+      if (!entry.name?.endsWith('.json')) continue
+      const id = entry.name.replace('.json', '')
+      if (!validIds.has(id)) {
+        const configPath = await path.join(configDir, entry.name)
+        try {
+          await remove(configPath, { baseDir: BaseDirectory.AppData })
+          console.log(`[Plugin] 已清理孤立配置: ${id}`)
+        } catch { /* ignore */ }
+      }
+    }
   }
 
   const restoreRuntimeConfigs = async () => {
@@ -99,6 +123,8 @@ export const usePluginManager = defineStore('pluginManager', () => {
             if (cfg._runtime.clickThrough !== undefined) state.clickThrough = cfg._runtime.clickThrough
             if (cfg._runtime.opacity !== undefined) state.opacity = cfg._runtime.opacity
             if (cfg._runtime.scale !== undefined) state.scale = cfg._runtime.scale
+            if (cfg._runtime.widgetActive !== undefined) state.widgetActive = cfg._runtime.widgetActive
+            if (cfg._runtime.streamingActive !== undefined) state.streamingActive = cfg._runtime.streamingActive
             states.value[id] = state
           }
         }
@@ -106,11 +132,31 @@ export const usePluginManager = defineStore('pluginManager', () => {
     }
   }
 
+  // ── 持久化运行时状态到配置文件 ──
+  const persistRuntimeState = async (pluginId: string) => {
+    const state = getState(pluginId)
+    try {
+      await invoke('set_plugin_config', {
+        pluginId,
+        config: {
+          _runtime: {
+            widgetActive: state.widgetActive,
+            streamingActive: state.streamingActive,
+            clickThrough: state.clickThrough,
+            opacity: state.opacity,
+            scale: state.scale,
+          },
+        },
+      })
+    } catch { /* ignore */ }
+  }
+
   // ── Widget 状态管理 ──
   const setWidgetActive = (pluginId: string, active: boolean) => {
     const state = getState(pluginId)
     state.widgetActive = active
     states.value[pluginId] = state
+    persistRuntimeState(pluginId)
   }
 
   // ── Streaming 状态管理 ──
@@ -118,6 +164,7 @@ export const usePluginManager = defineStore('pluginManager', () => {
     const state = getState(pluginId)
     state.streamingActive = active
     states.value[pluginId] = state
+    persistRuntimeState(pluginId)
   }
 
   // ── 配置管理 ──
@@ -167,5 +214,6 @@ export const usePluginManager = defineStore('pluginManager', () => {
     setOpacity,
     setScale,
     getPlugin,
+    persistRuntimeState,
   }
 })

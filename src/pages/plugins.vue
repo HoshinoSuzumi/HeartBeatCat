@@ -238,18 +238,8 @@ const refreshAll = async () => {
 
 // ── 设置管理 ──
 const saveRuntimeConfig = async (pluginId: string) => {
-  const state = pluginMgr.getState(pluginId)
   try {
-    await invoke('set_plugin_config', {
-      pluginId,
-      config: {
-        _runtime: {
-          clickThrough: state.clickThrough,
-          opacity: state.opacity,
-          scale: state.scale,
-        },
-      },
-    })
+    await pluginMgr.persistRuntimeState(pluginId)
   } catch { /* ignore */ }
 }
 

@@ -43,8 +43,34 @@ listen('device-connected', (_) => {
   sessionStore.startSession()
 })
 
-onMounted(() => {
-  pluginMgr.refreshPlugins()
+onMounted(async () => {
+  await pluginMgr.refreshPlugins()
+
+  // 自动启动上次退出前处于活跃状态的组件和推流插件
+  for (const p of pluginMgr.plugins) {
+    const id = p.manifest.plugin.id
+    const state = pluginMgr.getState(id)
+
+    if (state.widgetActive && p.manifest.widget) {
+      try {
+        await invoke('open_widget', { pluginId: id })
+        console.log(`[App] 自动启动组件: ${id}`)
+      } catch (e) {
+        console.error(`[App] 自动启动组件失败 (${id}):`, e)
+        pluginMgr.setWidgetActive(id, false)
+      }
+    }
+
+    if (state.streamingActive && p.manifest.streaming) {
+      try {
+        await invoke('start_streaming', { pluginId: id })
+        console.log(`[App] 自动启动推流: ${id}`)
+      } catch (e) {
+        console.error(`[App] 自动启动推流失败 (${id}):`, e)
+        pluginMgr.setStreamingActive(id, false)
+      }
+    }
+  }
 })
 
 onBeforeMount(async () => {
