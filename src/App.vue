@@ -72,12 +72,10 @@ onBeforeMount(async () => {
         text: '退出 HBCat',
         accelerator: 'CmdOrCtrl+Q',
         action: async () => {
+          // 先通过 Rust 命令关闭所有小组件窗口（会保存位置）
+          await invoke('close_all_widgets')
+          // 再退出主窗口
           await mainWindow?.destroy()
-          window.getAllWindows().then((windows) => {
-            windows.forEach((w) => {
-              if (w.label !== 'main') w.destroy()
-            })
-          })
         },
       },
     ],

@@ -11,7 +11,7 @@ use std::convert::Infallible;
 use std::error::Error;
 use std::sync::Arc;
 use tauri::path::BaseDirectory;
-use tauri::{AppHandle, Emitter, Listener, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Listener, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder};
 use tokio;
 use tokio::sync::Mutex;
 use tokio::sync::broadcast;
@@ -779,6 +779,48 @@ fn extract_defaults(schema: &serde_json::Value) -> serde_json::Value {
 }
 
 #[tauri::command]
+async fn close_all_widgets(app_handle: AppHandle) -> Result<bool, String> {
+    let windows: Vec<String> = app_handle
+        .webview_windows()
+        .keys()
+        .filter(|label| label.starts_with("widget_"))
+        .cloned()
+        .collect();
+
+    for label in &windows {
+        if let Some(window) = app_handle.get_webview_window(label) {
+            // 保存窗口位置
+            if let Ok(pos) = window.outer_position() {
+                let plugin_id = label.strip_prefix("widget_").unwrap_or(label);
+                let config_dir = resolve_appdata(&app_handle, "plugin-config");
+                let _ = std::fs::create_dir_all(&config_dir);
+                let config_path = config_dir.join(format!("{}.json", plugin_id));
+                let mut cfg = if config_path.exists() {
+                    std::fs::read_to_string(&config_path)
+                        .ok()
+                        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+                        .unwrap_or(serde_json::json!({}))
+                } else {
+                    serde_json::json!({})
+                };
+                if cfg["_runtime"].is_null() {
+                    cfg["_runtime"] = serde_json::json!({});
+                }
+                cfg["_runtime"]["x"] = serde_json::json!(pos.x);
+                cfg["_runtime"]["y"] = serde_json::json!(pos.y);
+                let _ = std::fs::write(
+                    &config_path,
+                    serde_json::to_string_pretty(&cfg).unwrap_or_default(),
+                );
+            }
+            let _ = window.close();
+        }
+    }
+
+    Ok(true)
+}
+
+#[tauri::command]
 async fn uninstall_plugin(
     plugin_id: String,
     app_handle: AppHandle,
@@ -846,6 +888,7 @@ async fn main() {
             get_widget_url,
             open_widget,
             close_widget,
+            close_all_widgets,
             set_widget_click_through,
             set_widget_opacity,
             set_widget_scale,
@@ -1042,6 +1085,22 @@ async fn main() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            if let RunEvent::Exit = event {
+                // 安全网：退出前关闭所有小组件窗口
+                let windows: Vec<String> = app_handle
+                    .webview_windows()
+                    .keys()
+                    .filter(|label| label.starts_with("widget_"))
+                    .cloned()
+                    .collect();
+                for label in &windows {
+                    if let Some(window) = app_handle.get_webview_window(label) {
+                        let _ = window.close();
+                    }
+                }
+            }
+        });
 }
