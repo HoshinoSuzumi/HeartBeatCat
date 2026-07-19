@@ -68,6 +68,8 @@ onBeforeRouteLeave(async (_to, _from, next) => {
             <slot name="subtitle" />
           </span>
         </div>
+        <div class="flex-1" />
+        <slot name="actions" />
       </header>
       <div class="flex-1 min-h-0">
         <slot />

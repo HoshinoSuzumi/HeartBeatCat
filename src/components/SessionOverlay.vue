@@ -3,11 +3,13 @@ import { computed, onMounted, ref, watch } from "vue"
 import FullscreenPage from "./FullscreenPage.vue"
 import HeartRateChart from "./HeartRateChart.vue"
 import { useSessionStore, type SessionData } from "../stores/session"
+import { useConfirmDialog } from "../composables/useConfirmDialog"
 
 const props = defineProps<{ sessionId: string }>()
 const emit = defineEmits<{ close: [] }>()
 
 const sessionStore = useSessionStore()
+const confirmDialog = useConfirmDialog()
 const sessionData = ref<SessionData | null>(null)
 const loading = ref(true)
 
@@ -61,12 +63,34 @@ async function load(id: string) {
 
 onMounted(() => load(props.sessionId))
 watch(() => props.sessionId, (id) => load(id))
+
+async function handleDelete() {
+  const confirmed = await confirmDialog.confirm({
+    title: "删除会话",
+    message: "确认删除此会话记录？此操作不可撤销。",
+    type: "danger",
+    confirmText: "删除",
+    cancelText: "取消",
+  })
+  if (!confirmed) return
+  await sessionStore.deleteSession(props.sessionId)
+  emit("close")
+}
 </script>
 
 <template>
   <FullscreenPage @close="$emit('close')">
     <template #title>会话详情</template>
     <template v-if="sessionData" #subtitle>{{ subtitle }}</template>
+    <template v-if="sessionData" #actions>
+      <button
+        class="flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium text-red-500 hover:bg-red-50 transition"
+        @click="handleDelete"
+      >
+        <TablerTrash class="text-sm" />
+        删除
+      </button>
+    </template>
 
     <div v-if="loading" class="h-full flex justify-center items-center">
       <SvgSpinnersPulse2 class="icon text-3xl text-neutral-300" />

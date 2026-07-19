@@ -1,4 +1,4 @@
-import { BaseDirectory, exists, mkdir, readDir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs"
+import { BaseDirectory, exists, mkdir, readDir, readTextFile, remove, writeTextFile } from "@tauri-apps/plugin-fs"
 import { defineStore } from "pinia"
 import { ref } from "vue"
 import type { HeartRatePoint } from "./heartRateHistory"
@@ -159,8 +159,11 @@ export const useSessionStore = defineStore("session", () => {
   }
 
   const deleteSession = async (id: string) => {
-    // TODO: 文件删除需要引入 remove
-    await refreshSessions()
+    const p = _sessionPath(id)
+    if (await exists(p, { baseDir: BaseDirectory.AppData })) {
+      await remove(p, { baseDir: BaseDirectory.AppData })
+    }
+    sessions.value = sessions.value.filter((s) => s.id !== id)
   }
 
   const isActive = () => currentSession.value !== null
