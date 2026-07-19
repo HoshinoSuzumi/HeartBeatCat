@@ -1,0 +1,62 @@
+{
+  "manifestVersion": 1,
+  "plugin": {
+    "id": "brcat-widget-example",
+    "name": "HeartBeat Cat 示例插件",
+    "version": "0.0.1",
+    "description": "A simple example of a widget using brcat",
+    "author": {
+      "name": "Timothy Yin",
+      "email": "master@uniiem.com"
+    },
+    "homepage": null,
+    "icon": "favicon_256.ico"
+  },
+  "permissions": [
+    "heart-rate",
+    "device-connected",
+    "device-disconnected"
+  ],
+  "settings": {
+    "type": "object",
+    "properties": {
+      "displayUnit": {
+        "type": "string",
+        "enum": [
+          "bpm",
+          "percentage"
+        ],
+        "default": "bpm",
+        "title": "显示单位"
+      },
+      "maxHR": {
+        "type": "number",
+        "minimum": 60,
+        "maximum": 240,
+        "default": 200,
+        "title": "最大心率"
+      },
+      "showStatusBar": {
+        "type": "boolean",
+        "default": true,
+        "title": "显示状态栏"
+      }
+    }
+  },
+  "widget": {
+    "entry": "widget/index.html",
+    "window": {
+      "width": 100,
+      "height": 100,
+      "alwaysOnTop": true,
+      "transparent": true
+    }
+  },
+  "streaming": {
+    "entry": "streaming/index.html",
+    "viewport": {
+      "width": 260,
+      "height": 260
+    }
+  }
+}
