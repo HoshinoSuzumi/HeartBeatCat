@@ -443,6 +443,7 @@ async fn open_widget(
         .shadow(false)
         .transparent(transparent)
         .always_on_top(always_on_top)
+        .skip_taskbar(true)
         .build()
         .map_err(|e| format!("创建窗口失败: {}", e))?;
 
