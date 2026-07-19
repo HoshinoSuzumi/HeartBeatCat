@@ -330,32 +330,42 @@ fn get_widget_url() -> Result<serde_json::Value, String> {
 
 // ── SSE 事件广播器 ──
 // 每个 pluginId 对应一个 broadcast channel，用于向 SSE 客户端推送事件
+// streaming 必须通过 start_streaming 显式启动后才可用
 #[derive(Clone)]
 struct SseBroadcaster {
     channels: Arc<Mutex<HashMap<String, broadcast::Sender<String>>>>,
+    active: Arc<Mutex<std::collections::HashSet<String>>>,
 }
 
 impl SseBroadcaster {
     fn new() -> Self {
         Self {
             channels: Arc::new(Mutex::new(HashMap::new())),
+            active: Arc::new(Mutex::new(std::collections::HashSet::new())),
         }
     }
 
-    async fn register(&self, plugin_id: &str) -> broadcast::Receiver<String> {
+    async fn is_active(&self, plugin_id: &str) -> bool {
+        self.active.lock().await.contains(plugin_id)
+    }
+
+    async fn activate(&self, plugin_id: &str) {
+        self.active.lock().await.insert(plugin_id.to_string());
         let mut channels = self.channels.lock().await;
-        if let Some(tx) = channels.get(plugin_id) {
-            tx.subscribe()
-        } else {
-            let (tx, rx) = broadcast::channel::<String>(64);
+        if !channels.contains_key(plugin_id) {
+            let (tx, _rx) = broadcast::channel::<String>(64);
             channels.insert(plugin_id.to_string(), tx);
-            rx
         }
     }
 
-    async fn unregister(&self, plugin_id: &str) {
-        let mut channels = self.channels.lock().await;
-        channels.remove(plugin_id);
+    async fn subscribe(&self, plugin_id: &str) -> Option<broadcast::Receiver<String>> {
+        let channels = self.channels.lock().await;
+        channels.get(plugin_id).map(|tx| tx.subscribe())
+    }
+
+    async fn deactivate(&self, plugin_id: &str) {
+        self.active.lock().await.remove(plugin_id);
+        self.channels.lock().await.remove(plugin_id);
     }
 
     #[allow(dead_code)]
@@ -461,7 +471,7 @@ async fn start_streaming(
     plugin_id: String,
     broadcaster: State<'_, SseBroadcaster>,
 ) -> Result<bool, String> {
-    broadcaster.register(&plugin_id).await;
+    broadcaster.activate(&plugin_id).await;
     Ok(true)
 }
 
@@ -470,7 +480,7 @@ async fn stop_streaming(
     plugin_id: String,
     broadcaster: State<'_, SseBroadcaster>,
 ) -> Result<bool, String> {
-    broadcaster.unregister(&plugin_id).await;
+    broadcaster.deactivate(&plugin_id).await;
     Ok(true)
 }
 
@@ -747,7 +757,7 @@ async fn main() {
                             }
                         });
 
-                    // /p/{id}/events — SSE 端点
+                    // /p/{id}/events — SSE 端点（需先启动 streaming）
                     let bc = warp_broadcaster.clone();
                     let sse_route = warp::path("p")
                         .and(warp::path::param::<String>())
@@ -756,7 +766,13 @@ async fn main() {
                         .and_then(move |plugin_id: String| {
                             let bc = bc.clone();
                             async move {
-                                let mut rx = bc.register(&plugin_id).await;
+                                if !bc.is_active(&plugin_id).await {
+                                    return Err(warp::reject::not_found());
+                                }
+                                let mut rx = match bc.subscribe(&plugin_id).await {
+                                    Some(rx) => rx,
+                                    None => return Err(warp::reject::not_found()),
+                                };
                                 let stream = async_stream::stream! {
                                     // 发送初始连接确认
                                     yield Ok::<_, Infallible>(warp::sse::Event::default()
@@ -781,7 +797,7 @@ async fn main() {
                                         }
                                     }
                                 };
-                                Ok::<_, Infallible>(warp::sse::reply(warp::sse::keep_alive().stream(stream)))
+                                Ok::<_, warp::Rejection>(warp::sse::reply(warp::sse::keep_alive().stream(stream)))
                             }
                         });
 
