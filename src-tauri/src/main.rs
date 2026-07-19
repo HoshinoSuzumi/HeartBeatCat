@@ -522,16 +522,16 @@ async fn set_plugin_config(
 #[tauri::command]
 async fn install_plugin(
     file_path: String,
+    force: Option<bool>,
     app_handle: AppHandle,
-) -> Result<String, String> {
+) -> Result<serde_json::Value, String> {
     let plugins_dir = app_handle.path().resolve("plugins", BaseDirectory::AppData).unwrap();
     std::fs::create_dir_all(&plugins_dir).map_err(|e| e.to_string())?;
 
-    // 读取 zip 文件
+    // 读取 zip 文件，提取 manifest
     let file = std::fs::File::open(&file_path).map_err(|e| format!("无法打开文件: {}", e))?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("无法读取插件包: {}", e))?;
 
-    // 查找并解析 manifest
     let mut manifest: Option<serde_json::Value> = None;
     for i in 0..archive.len() {
         let entry = archive.by_index(i).map_err(|e| e.to_string())?;
@@ -547,26 +547,40 @@ async fn install_plugin(
     let plugin_id = manifest["plugin"]["id"].as_str()
         .ok_or("manifest 缺少 plugin.id")?
         .to_string();
-    let plugin_version = manifest["plugin"]["version"].as_str().unwrap_or("0.0.0");
+    let plugin_name = manifest["plugin"]["name"].as_str().unwrap_or(&plugin_id);
+    let new_version = manifest["plugin"]["version"].as_str().unwrap_or("0.0.0");
 
-    // 检查是否已安装
+    // ── 版本冲突检测 ──
     let target_dir = plugins_dir.join(&plugin_id);
-    if target_dir.exists() {
-        // 读取已安装版本
-        let existing_manifest_path = target_dir.join("hbcat-manifest.json");
-        if existing_manifest_path.exists() {
-            let existing = std::fs::read_to_string(&existing_manifest_path).unwrap_or_default();
-            if let Ok(existing_json) = serde_json::from_str::<serde_json::Value>(&existing) {
-                let existing_version = existing_json["plugin"]["version"].as_str().unwrap_or("0.0.0");
-                if existing_version == plugin_version {
-                    // 同版本，先删除再安装（覆盖）
-                }
+    let existing_manifest_path = target_dir.join("hbcat-manifest.json");
+
+    if target_dir.exists() && existing_manifest_path.exists() {
+        let existing = std::fs::read_to_string(&existing_manifest_path).unwrap_or_default();
+        if let Ok(existing_json) = serde_json::from_str::<serde_json::Value>(&existing) {
+            let old_version = existing_json["plugin"]["version"].as_str().unwrap_or("0.0.0");
+
+            if old_version == new_version {
+                return Err(format!("SAME_VERSION:{}", old_version));
+            }
+
+            if !force.unwrap_or(false) {
+                // 需要用户确认升级/降级
+                return Ok(serde_json::json!({
+                    "action": "confirm",
+                    "pluginId": plugin_id,
+                    "pluginName": plugin_name,
+                    "oldVersion": old_version,
+                    "newVersion": new_version
+                }));
             }
         }
+    }
+
+    // ── 执行安装 ──
+    if target_dir.exists() {
         std::fs::remove_dir_all(&target_dir).map_err(|e| format!("无法覆盖已安装的插件: {}", e))?;
     }
 
-    // 解压到目标目录
     let file = std::fs::File::open(&file_path).map_err(|e| format!("无法重新打开文件: {}", e))?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("无法读取插件包: {}", e))?;
 
@@ -598,7 +612,13 @@ async fn install_plugin(
         }
     }
 
-    Ok(plugin_id)
+    let old_version = if force.unwrap_or(false) { Some("") } else { None };
+    Ok(serde_json::json!({
+        "action": if old_version.is_some() { "upgraded" } else { "installed" },
+        "pluginId": plugin_id,
+        "pluginName": plugin_name,
+        "version": new_version
+    }))
 }
 
 fn extract_defaults(schema: &serde_json::Value) -> serde_json::Value {

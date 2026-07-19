@@ -123,6 +123,10 @@ const copyStreamingUrl = () => {
 }
 
 // ── 安装插件 ──
+const installFilePath = ref<string | null>(null)
+const confirmUpgrade = ref(false)
+const upgradeInfo = ref<{ pluginName: string; oldVersion: string; newVersion: string } | null>(null)
+
 const installPlugin = async () => {
   try {
     const selected = await open({
@@ -133,13 +137,56 @@ const installPlugin = async () => {
     if (!selected) return
 
     const filePath = typeof selected === 'string' ? selected : (selected as any).path ?? selected
-    const pluginId = await invoke<string>('install_plugin', { filePath })
-    await pluginMgr.refreshPlugins()
-    selectedId.value = pluginId
-    snackbar.add({ type: 'success', text: '插件安装成功' })
+    installFilePath.value = filePath
+    await doInstall(filePath)
   } catch (e) {
     snackbar.add({ type: 'error', text: `安装失败: ${e}` })
   }
+}
+
+const doInstall = async (filePath: string, force = false) => {
+  try {
+    const result = await invoke<any>('install_plugin', { filePath, force })
+
+    if (result.action === 'confirm') {
+      // 需要确认升级/降级
+      upgradeInfo.value = {
+        pluginName: result.pluginName,
+        oldVersion: result.oldVersion,
+        newVersion: result.newVersion,
+      }
+      confirmUpgrade.value = true
+      return
+    }
+
+    // 安装/升级成功
+    await pluginMgr.refreshPlugins()
+    selectedId.value = result.pluginId
+    snackbar.add({
+      type: 'success',
+      text: result.action === 'upgraded'
+        ? `已升级「${result.pluginName}」v${result.version}`
+        : `已安装「${result.pluginName}」v${result.version}`,
+    })
+  } catch (e: any) {
+    const msg = String(e)
+    if (msg.startsWith('SAME_VERSION:')) {
+      snackbar.add({ type: 'warning', text: `已安装相同版本 v${msg.replace('SAME_VERSION:', '')}` })
+    } else {
+      snackbar.add({ type: 'error', text: `安装失败: ${msg}` })
+    }
+  }
+}
+
+const confirmDoUpgrade = async () => {
+  confirmUpgrade.value = false
+  if (!installFilePath.value) return
+  await doInstall(installFilePath.value, true)
+}
+
+const cancelUpgrade = () => {
+  confirmUpgrade.value = false
+  upgradeInfo.value = null
 }
 
 // ── 卸载插件 ──
@@ -421,6 +468,23 @@ onMounted(() => {
         <!-- 未选中插件 -->
         <div v-else class="flex items-center justify-center h-full">
           <p class="text-sm text-neutral-400">选择一个插件查看详情</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- TODO: 将弹窗抽到公共组件中，并封装可复用的 composable -->
+    <!-- 升级确认弹窗 -->
+    <div v-if="confirmUpgrade" class="fixed inset-0 bg-black/30 flex items-center justify-center z-50" @click.self="cancelUpgrade">
+      <div class="bg-white rounded-lg shadow-xl p-6 w-80">
+        <h3 class="text-sm font-semibold mb-2">更新插件</h3>
+        <p class="text-xs text-neutral-500 mb-2" v-if="upgradeInfo">
+          已安装 <span class="font-medium">{{ upgradeInfo.pluginName }}</span> v{{ upgradeInfo.oldVersion }}，
+          将要安装 v{{ upgradeInfo.newVersion }}。
+        </p>
+        <p class="text-xs text-neutral-400 mb-4">是否确认更新？</p>
+        <div class="flex justify-end gap-2">
+          <button class="btn outline text-xs" @click="cancelUpgrade">取消</button>
+          <button class="btn text-xs bg-primary-500 text-white hover:bg-primary-600" @click="confirmDoUpgrade">确认更新</button>
         </div>
       </div>
     </div>
