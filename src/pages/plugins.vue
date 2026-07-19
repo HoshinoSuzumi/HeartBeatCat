@@ -9,8 +9,10 @@ import { openPath } from '@tauri-apps/plugin-opener'
 import { open } from '@tauri-apps/plugin-dialog'
 import type { LoadedPlugin, PluginManifest } from '../types/plugin'
 import PluginSettingsForm from '../components/PluginSettingsForm.vue'
+import { useConfirmDialog } from '../composables/useConfirmDialog'
 
 const pluginMgr = usePluginManager()
+const dialog = useConfirmDialog()
 const snackbar = useSnackbar()
 
 const selectedId = ref<string | null>(null)
@@ -123,10 +125,6 @@ const copyStreamingUrl = () => {
 }
 
 // ── 安装插件 ──
-const installFilePath = ref<string | null>(null)
-const confirmUpgrade = ref(false)
-const upgradeInfo = ref<{ pluginName: string; oldVersion: string; newVersion: string } | null>(null)
-
 const installPlugin = async () => {
   try {
     const selected = await open({
@@ -137,7 +135,6 @@ const installPlugin = async () => {
     if (!selected) return
 
     const filePath = typeof selected === 'string' ? selected : (selected as any).path ?? selected
-    installFilePath.value = filePath
     await doInstall(filePath)
   } catch (e) {
     snackbar.add({ type: 'error', text: `安装失败: ${e}` })
@@ -149,13 +146,13 @@ const doInstall = async (filePath: string, force = false) => {
     const result = await invoke<any>('install_plugin', { filePath, force })
 
     if (result.action === 'confirm') {
-      // 需要确认升级/降级
-      upgradeInfo.value = {
-        pluginName: result.pluginName,
-        oldVersion: result.oldVersion,
-        newVersion: result.newVersion,
-      }
-      confirmUpgrade.value = true
+      const ok = await dialog.warn({
+        title: '更新插件',
+        message: `已安装「${result.pluginName}」v${result.oldVersion}，将要安装 v${result.newVersion}。是否确认更新？`,
+        confirmText: '确认更新',
+      })
+      if (!ok) return
+      await doInstall(filePath, true)
       return
     }
 
@@ -181,57 +178,37 @@ const doInstall = async (filePath: string, force = false) => {
   }
 }
 
-const confirmDoUpgrade = async () => {
-  confirmUpgrade.value = false
-  if (!installFilePath.value) return
-  await doInstall(installFilePath.value, true)
-}
-
-const cancelUpgrade = () => {
-  confirmUpgrade.value = false
-  upgradeInfo.value = null
-}
-
 // ── 卸载插件 ──
-const confirmUninstall = ref(false)
-const uninstallTargetId = ref<string | null>(null)
-
-const promptUninstall = (pluginId: string) => {
-  uninstallTargetId.value = pluginId
-  confirmUninstall.value = true
+const promptUninstall = async (pluginId: string) => {
+  const ok = await dialog.danger({
+    title: '确认卸载',
+    message: '确定要卸载此插件吗？相关的桌面组件窗口和推流服务将被关闭。',
+    confirmText: '确认卸载',
+  })
+  if (!ok) return
+  await doUninstall(pluginId)
 }
 
-const doUninstall = async () => {
-  if (!uninstallTargetId.value) return
-  const id = uninstallTargetId.value
-
+const doUninstall = async (pluginId: string) => {
   // 先停用相关能力
-  const state = pluginMgr.getState(id)
+  const state = pluginMgr.getState(pluginId)
   if (state.widgetActive) {
-    try { await invoke('close_widget', { pluginId: id }) } catch {}
-    pluginMgr.setWidgetActive(id, false)
+    try { await invoke('close_widget', { pluginId }) } catch {}
+    pluginMgr.setWidgetActive(pluginId, false)
   }
   if (state.streamingActive) {
-    try { await invoke('stop_streaming', { pluginId: id }) } catch {}
-    pluginMgr.setStreamingActive(id, false)
+    try { await invoke('stop_streaming', { pluginId }) } catch {}
+    pluginMgr.setStreamingActive(pluginId, false)
   }
 
   try {
-    await invoke('uninstall_plugin', { pluginId: id })
-    if (selectedId.value === id) selectedId.value = null
+    await invoke('uninstall_plugin', { pluginId })
+    if (selectedId.value === pluginId) selectedId.value = null
     await pluginMgr.refreshPlugins()
     snackbar.add({ type: 'success', text: '插件已卸载' })
   } catch (e) {
     snackbar.add({ type: 'error', text: `卸载失败: ${e}` })
-  } finally {
-    confirmUninstall.value = false
-    uninstallTargetId.value = null
   }
-}
-
-const cancelUninstall = () => {
-  confirmUninstall.value = false
-  uninstallTargetId.value = null
 }
 
 // ── 设置管理 ──
@@ -577,37 +554,6 @@ onMounted(() => {
         <!-- 未选中插件 -->
         <div v-else class="flex items-center justify-center h-full">
           <p class="text-sm text-neutral-400">选择一个插件查看详情</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- TODO: 将弹窗抽到公共组件中，并封装可复用的 composable -->
-    <!-- 升级确认弹窗 -->
-    <div v-if="confirmUpgrade" class="fixed inset-0 bg-black/30 flex items-center justify-center z-50" @click.self="cancelUpgrade">
-      <div class="bg-white rounded-lg shadow-xl p-6 w-80">
-        <h3 class="text-sm font-semibold mb-2">更新插件</h3>
-        <p class="text-xs text-neutral-500 mb-2" v-if="upgradeInfo">
-          已安装 <span class="font-medium">{{ upgradeInfo.pluginName }}</span> v{{ upgradeInfo.oldVersion }}，
-          将要安装 v{{ upgradeInfo.newVersion }}。
-        </p>
-        <p class="text-xs text-neutral-400 mb-4">是否确认更新？</p>
-        <div class="flex justify-end gap-2">
-          <button class="btn outline text-xs" @click="cancelUpgrade">取消</button>
-          <button class="btn text-xs bg-primary-500 text-white hover:bg-primary-600" @click="confirmDoUpgrade">确认更新</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 卸载确认弹窗 -->
-    <div v-if="confirmUninstall" class="fixed inset-0 bg-black/30 flex items-center justify-center z-50" @click.self="cancelUninstall">
-      <div class="bg-white rounded-lg shadow-xl p-6 w-80">
-        <h3 class="text-sm font-semibold mb-2">确认卸载</h3>
-        <p class="text-xs text-neutral-500 mb-4">
-          确定要卸载此插件吗？相关的桌面组件窗口和推流服务将被关闭。
-        </p>
-        <div class="flex justify-end gap-2">
-          <button class="btn outline text-xs" @click="cancelUninstall">取消</button>
-          <button class="btn text-xs bg-red-500 text-white hover:bg-red-600" @click="doUninstall">确认卸载</button>
         </div>
       </div>
     </div>

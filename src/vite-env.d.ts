@@ -5,3 +5,11 @@ declare module "*.vue" {
   const component: DefineComponent<{}, {}, any>;
   export default component;
 }
+
+import type gsap from 'gsap'
+
+declare module 'vue' {
+  interface ComponentCustomProperties {
+    $gsap: typeof gsap
+  }
+}

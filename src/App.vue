@@ -5,6 +5,7 @@ import { Device, useBrcatStore } from './stores'
 import { useSnackbar, Vue3Snackbar } from 'vue3-snackbar'
 import { onBeforeMount, onMounted } from 'vue'
 import { usePluginManager } from './stores/plugin'
+import ConfirmDialog from './components/ConfirmDialog.vue'
 import { window } from '@tauri-apps/api'
 import { Menu } from '@tauri-apps/api/menu'
 import { TrayIcon, TrayIconOptions } from '@tauri-apps/api/tray'
@@ -123,6 +124,7 @@ onBeforeMount(async () => {
       :border="'left'"
       :duration="5000"
     ></Vue3Snackbar>
+    <ConfirmDialog />
   </div>
 </template>
 
