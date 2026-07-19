@@ -1,8 +1,13 @@
 <script lang="ts" setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useBrcatStore } from '../stores';
+import MarqueeText from './MarqueeText.vue';
 
 const store = useBrcatStore();
+
+const deviceName = computed(() =>
+  store.is_connected ? (store.connected_device?.name ?? '') : '未连接'
+)
 
 const navList = ref([
   { title: '设备连接', path: '/' },
@@ -43,9 +48,7 @@ const navList = ref([
         <div class="status">
           <TablerBluetoothConnected v-if="store.is_connected" class="icon text-sm block -mt-0.5 text-emerald-500" />
           <TablerBluetooth v-else class="icon text-sm block -mt-0.5 text-neutral-400" />
-          <span class="text" :title="store.is_connected ? store.connected_device?.name : undefined">
-            {{ store.is_connected ? store.connected_device?.name : '未连接' }}
-          </span>
+          <MarqueeText :text="deviceName" />
         </div>
       </div>
     </div>
@@ -91,10 +94,6 @@ const navList = ref([
 
     .status {
       @apply w-full h-8 bg-neutral-200 flex items-center text-neutral-900 px-2 text-2xs whitespace-nowrap flex-nowrap;
-
-      .text {
-        @apply flex-1 overflow-hidden text-ellipsis;
-      }
     }
   }
 
