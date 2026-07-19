@@ -332,8 +332,10 @@ onMounted(() => {
         <div
           v-for="item in pluginList"
           :key="item.manifest.plugin.id"
-          class="px-3 py-2.5 border-b border-neutral-100 cursor-pointer transition-colors hover:bg-neutral-50"
-          :class="{ 'bg-primary-50 border-l-2 border-l-primary-400': selectedId === item.manifest.plugin.id }"
+          class="pr-3 py-2.5 border-b border-neutral-100 cursor-pointer transition-colors hover:bg-neutral-50"
+          :class="selectedId === item.manifest.plugin.id
+            ? 'bg-primary-50 border-l-2 border-l-primary-400 pl-2.5'
+            : 'pl-3'"
           @click="selectPlugin(item.manifest.plugin.id)"
         >
           <div class="flex items-center gap-0.5">
