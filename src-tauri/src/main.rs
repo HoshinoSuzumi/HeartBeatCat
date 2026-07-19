@@ -17,6 +17,21 @@ use tokio::sync::Mutex;
 use tokio::sync::broadcast;
 use warp::Filter;
 
+/// 解析 AppData 目录下的子路径。
+/// Windows 上优先使用 `%APPDATA%` 环境变量 + bundle identifier，
+/// 以规避 Tauri NSIS 安装到 Program Files 时 BaseDirectory::AppData 解析异常的问题。
+fn resolve_appdata(app_handle: &AppHandle, sub_path: &str) -> std::path::PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(appdata) = std::env::var("APPDATA") {
+            let identifier = &app_handle.config().identifier;
+            return std::path::PathBuf::from(appdata).join(identifier).join(sub_path);
+        }
+    }
+    // 非 Windows 或环境变量缺失时回退到 Tauri 内置解析
+    app_handle.path().resolve(sub_path, BaseDirectory::AppData).unwrap()
+}
+
 #[derive(serde::Serialize, Clone, Debug)]
 struct BleDevice {
     peripheral_id: String,
@@ -404,7 +419,7 @@ async fn open_widget(
 
     // 解析插件目录，找到 manifest
     let resource_plugins = app_handle.path().resolve("plugins", BaseDirectory::Resource).unwrap();
-    let appdata_plugins = app_handle.path().resolve("plugins", BaseDirectory::AppData).unwrap();
+    let appdata_plugins = resolve_appdata(&app_handle, "plugins");
 
     let plugin_dir = if appdata_plugins.join(&plugin_id).exists() {
         appdata_plugins.join(&plugin_id)
@@ -451,7 +466,7 @@ async fn open_widget(
     let _ = window.set_size(tauri::LogicalSize::new(width, height));
 
     // 恢复保存的位置和运行时设置
-    let config_dir = app_handle.path().resolve("plugin-config", BaseDirectory::AppData).unwrap();
+    let config_dir = resolve_appdata(&app_handle, "plugin-config");
     let config_path = config_dir.join(format!("{}.json", plugin_id));
     if config_path.exists() {
         if let Ok(content) = std::fs::read_to_string(&config_path) {
@@ -498,7 +513,7 @@ async fn close_widget(
     if let Some(window) = app_handle.get_webview_window(&label) {
         // 保存窗口位置
         if let Ok(pos) = window.outer_position() {
-            let config_dir = app_handle.path().resolve("plugin-config", BaseDirectory::AppData).unwrap();
+            let config_dir = resolve_appdata(&app_handle, "plugin-config");
             let _ = std::fs::create_dir_all(&config_dir);
             let config_path = config_dir.join(format!("{}.json", plugin_id));
             let mut cfg = if config_path.exists() {
@@ -594,7 +609,7 @@ async fn get_plugin_config(
     plugin_id: String,
     app_handle: AppHandle,
 ) -> Result<serde_json::Value, String> {
-    let config_dir = app_handle.path().resolve("plugin-config", BaseDirectory::AppData).unwrap();
+    let config_dir = resolve_appdata(&app_handle, "plugin-config");
     std::fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
     let config_path = config_dir.join(format!("{}.json", plugin_id));
     if config_path.exists() {
@@ -611,7 +626,7 @@ async fn set_plugin_config(
     config: serde_json::Value,
     app_handle: AppHandle,
 ) -> Result<bool, String> {
-    let config_dir = app_handle.path().resolve("plugin-config", BaseDirectory::AppData).unwrap();
+    let config_dir = resolve_appdata(&app_handle, "plugin-config");
     std::fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
     let config_path = config_dir.join(format!("{}.json", plugin_id));
 
@@ -655,7 +670,7 @@ async fn install_plugin(
     force: Option<bool>,
     app_handle: AppHandle,
 ) -> Result<serde_json::Value, String> {
-    let plugins_dir = app_handle.path().resolve("plugins", BaseDirectory::AppData).unwrap();
+    let plugins_dir = resolve_appdata(&app_handle, "plugins");
     std::fs::create_dir_all(&plugins_dir).map_err(|e| e.to_string())?;
 
     // 读取 zip 文件，提取 manifest
@@ -732,7 +747,7 @@ async fn install_plugin(
 
     // 初始化默认配置
     if let Some(settings) = manifest.get("settings") {
-        let config_dir = app_handle.path().resolve("plugin-config", BaseDirectory::AppData).unwrap();
+        let config_dir = resolve_appdata(&app_handle, "plugin-config");
         std::fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
         let config_path = config_dir.join(format!("{}.json", plugin_id));
         if !config_path.exists() {
@@ -768,13 +783,13 @@ async fn uninstall_plugin(
     plugin_id: String,
     app_handle: AppHandle,
 ) -> Result<bool, String> {
-    let plugins_dir = app_handle.path().resolve("plugins", BaseDirectory::AppData).unwrap();
+    let plugins_dir = resolve_appdata(&app_handle, "plugins");
     let plugin_dir = plugins_dir.join(&plugin_id);
     if plugin_dir.exists() {
         std::fs::remove_dir_all(&plugin_dir).map_err(|e| e.to_string())?;
     }
     // 同时删除配置
-    let config_dir = app_handle.path().resolve("plugin-config", BaseDirectory::AppData).unwrap();
+    let config_dir = resolve_appdata(&app_handle, "plugin-config");
     let config_path = config_dir.join(format!("{}.json", plugin_id));
     if config_path.exists() {
         std::fs::remove_file(&config_path).map_err(|e| e.to_string())?;
@@ -860,10 +875,7 @@ async fn main() {
                 .path()
                 .resolve("plugins", BaseDirectory::Resource)
                 .unwrap();
-            let appdata_plugins = app_handle
-                .path()
-                .resolve("plugins", BaseDirectory::AppData)
-                .unwrap();
+            let appdata_plugins = resolve_appdata(&app_handle, "plugins");
 
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().unwrap();

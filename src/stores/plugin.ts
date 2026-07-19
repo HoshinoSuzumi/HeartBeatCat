@@ -18,11 +18,13 @@ export const usePluginManager = defineStore('pluginManager', () => {
   const states = ref<Record<string, PluginRuntimeState>>({})
 
   // ── 从指定目录扫描插件 ──
-  const _scanDir = async (baseDir: BaseDirectory, searchPath: string): Promise<PluginManifest[]> => {
+  const _scanDir = async (baseDir: BaseDirectory, searchPath: string, autoCreate = false): Promise<PluginManifest[]> => {
     const result: PluginManifest[] = []
 
     if (!await exists(searchPath, { baseDir })) {
-      await mkdir(searchPath, { baseDir, recursive: true })
+      if (autoCreate) {
+        await mkdir(searchPath, { baseDir, recursive: true })
+      }
       return result
     }
 
@@ -70,12 +72,12 @@ export const usePluginManager = defineStore('pluginManager', () => {
       }
     }
 
-    // 1. 用户安装的插件（高优先级）
-    const userPlugins = await _scanDir(BaseDirectory.AppData, 'plugins')
+    // 1. 用户安装的插件（高优先级，自动创建目录）
+    const userPlugins = await _scanDir(BaseDirectory.AppData, 'plugins', true)
     addIfNew(userPlugins, false)
 
-    // 2. 内置插件（低优先级）
-    const builtinPlugins = await _scanDir(BaseDirectory.Resource, 'plugins')
+    // 2. 内置插件（低优先级，不自动创建）
+    const builtinPlugins = await _scanDir(BaseDirectory.Resource, 'plugins', false)
     addIfNew(builtinPlugins, true)
 
     plugins.value = allLoaded
@@ -85,13 +87,12 @@ export const usePluginManager = defineStore('pluginManager', () => {
   }
 
   const restoreRuntimeConfigs = async () => {
-    const configDir = await path.join(await path.appDataDir(), 'plugin-config')
     for (const p of plugins.value) {
       const id = p.manifest.plugin.id
-      const configPath = await path.join(configDir, `${id}.json`)
+      const configPath = await path.join('plugin-config', `${id}.json`)
       try {
-        if (await exists(configPath)) {
-          const raw = await readTextFile(configPath)
+        if (await exists(configPath, { baseDir: BaseDirectory.AppData })) {
+          const raw = await readTextFile(configPath, { baseDir: BaseDirectory.AppData })
           const cfg = JSON.parse(raw)
           if (cfg._runtime) {
             const state = getState(id)
