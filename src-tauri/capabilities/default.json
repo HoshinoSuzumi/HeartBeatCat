@@ -52,6 +52,7 @@
     "fs:allow-app-meta",
     "fs:allow-app-meta-recursive",
     "fs:allow-appdata-read-recursive",
+    "fs:allow-appdata-write-recursive",
     "shell:default",
     "opener:default",
     "dialog:default",

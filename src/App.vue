@@ -5,6 +5,12 @@ import { Device, useBrcatStore } from './stores'
 import { useSnackbar, Vue3Snackbar } from 'vue3-snackbar'
 import { onBeforeMount, onMounted } from 'vue'
 import { usePluginManager } from './stores/plugin'
+import { useSessionStore } from './stores/session'
+import { useOverlay } from './composables/useOverlay'
+import { useHistoryDrawer } from './composables/useDrawer'
+import SlideDrawer from './components/SlideDrawer.vue'
+import HistoryList from './components/HistoryList.vue'
+import SessionOverlay from './components/SessionOverlay.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import { window } from '@tauri-apps/api'
 import { Menu } from '@tauri-apps/api/menu'
@@ -13,6 +19,9 @@ import { defaultWindowIcon } from '@tauri-apps/api/app'
 
 const store = useBrcatStore()
 const pluginMgr = usePluginManager()
+const sessionStore = useSessionStore()
+const overlay = useOverlay()
+const historyDrawer = useHistoryDrawer()
 const snackbar = useSnackbar()
 
 invoke('register_central_events')
@@ -26,6 +35,12 @@ listen('device-disconnected', (_) => {
     type: 'warning',
     text: '设备已断开连接',
   })
+  sessionStore.endSession()
+})
+
+listen('device-connected', (_) => {
+  console.log("[App] device-connected 事件触发")
+  sessionStore.startSession()
 })
 
 onMounted(() => {
@@ -73,9 +88,8 @@ onBeforeMount(async () => {
         text: '退出 HBCat',
         accelerator: 'CmdOrCtrl+Q',
         action: async () => {
-          // 先通过 Rust 命令关闭所有小组件窗口（会保存位置）
+          await sessionStore.endSession()
           await invoke('close_all_widgets')
-          // 再退出主窗口
           await mainWindow?.destroy()
         },
       },
@@ -116,6 +130,15 @@ onBeforeMount(async () => {
         </Transition>
       </RouterView>
     </DrawerContainer>
+    <SlideDrawer :open="historyDrawer.isOpen.value" @close="historyDrawer.close()">
+      <template #title>历史记录</template>
+      <HistoryList />
+    </SlideDrawer>
+    <SessionOverlay
+      v-if="overlay.state.type === 'session' && overlay.state.sessionId"
+      :session-id="overlay.state.sessionId"
+      @close="overlay.close()"
+    />
     <Vue3Snackbar
       bottom
       right
