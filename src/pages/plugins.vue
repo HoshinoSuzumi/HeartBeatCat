@@ -343,7 +343,9 @@ onMounted(() => {
           <button class="btn outline text-xs" @click="refreshAll">刷新</button>
         </DevOnly>
         <button class="btn outline text-xs" @click="installPlugin">安装插件</button>
-        <button class="btn outline text-xs" @click="openPluginDir">插件目录</button>
+        <DevOnly>
+          <button class="btn outline text-xs" @click="openPluginDir">插件目录</button>
+        </DevOnly>
       </div>
     </template>
 
