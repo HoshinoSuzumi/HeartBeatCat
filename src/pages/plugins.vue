@@ -410,9 +410,7 @@ onMounted(() => {
                 <span class="text-sm">{{ selectedPlugin.state.widgetActive ? '运行中' : '未激活' }}</span>
               </div>
               <div class="text-sm text-neutral-500 space-y-1">
-                <p>默认大小: {{ selectedPlugin.manifest.widget.window.defaultWidth }}×{{ selectedPlugin.manifest.widget.window.defaultHeight }}</p>
-                <p>最小大小: {{ selectedPlugin.manifest.widget.window.minWidth }}×{{ selectedPlugin.manifest.widget.window.minHeight }}</p>
-                <p>可调大小: {{ selectedPlugin.manifest.widget.window.resizable ? '是' : '否' }}</p>
+                <p>大小: {{ selectedPlugin.manifest.widget.window.width }}×{{ selectedPlugin.manifest.widget.window.height }}</p>
                 <p>置顶: {{ selectedPlugin.manifest.widget.window.alwaysOnTop ? '是' : '否' }}</p>
               </div>
               <button

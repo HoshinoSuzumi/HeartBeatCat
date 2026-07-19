@@ -16,11 +16,8 @@ export interface PluginMeta {
 export interface WidgetCapability {
   entry: string
   window: {
-    defaultWidth: number
-    defaultHeight: number
-    minWidth: number
-    minHeight: number
-    resizable: boolean
+    width: number
+    height: number
     alwaysOnTop: boolean
     transparent: boolean
   }

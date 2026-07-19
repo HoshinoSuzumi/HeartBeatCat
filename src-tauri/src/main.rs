@@ -427,9 +427,8 @@ async fn open_widget(
         .unwrap_or("widget/index.html");
     let window_cfg = &widget["window"];
 
-    let width = window_cfg["defaultWidth"].as_f64().unwrap_or(200.0);
-    let height = window_cfg["defaultHeight"].as_f64().unwrap_or(150.0);
-    let resizable = window_cfg["resizable"].as_bool().unwrap_or(true);
+    let width = window_cfg["width"].as_f64().unwrap_or(200.0);
+    let height = window_cfg["height"].as_f64().unwrap_or(150.0);
     let always_on_top = window_cfg["alwaysOnTop"].as_bool().unwrap_or(true);
     let transparent = window_cfg["transparent"].as_bool().unwrap_or(true);
 
@@ -439,18 +438,13 @@ async fn open_widget(
     let window = WebviewWindowBuilder::new(&app_handle, &label, WebviewUrl::External(url.parse().unwrap()))
         .title(format!("HBCat 组件 - {}", manifest["plugin"]["name"].as_str().unwrap_or(&plugin_id)))
         .inner_size(width, height)
-        .min_inner_size(
-            window_cfg["minWidth"].as_f64().unwrap_or(80.0),
-            window_cfg["minHeight"].as_f64().unwrap_or(80.0),
-        )
-        .resizable(resizable)
+        .resizable(false)
         .decorations(false)
         .transparent(transparent)
         .always_on_top(always_on_top)
         .build()
         .map_err(|e| format!("创建窗口失败: {}", e))?;
 
-    let _ = window.show();
     let _ = window.show();
     let _ = window.set_size(tauri::LogicalSize::new(width, height));
     Ok(true)
