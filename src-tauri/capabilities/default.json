@@ -57,6 +57,8 @@
     "fs:allow-appdata-read-recursive",
     "shell:default",
     "opener:default",
+    "dialog:default",
+    "dialog:allow-open",
     {
       "identifier": "opener:allow-open-path",
       "allow": [

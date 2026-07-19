@@ -9,11 +9,7 @@ import App from "./App.vue";
 const routes = [
   { path: "/", component: () => import("./pages/index.vue") },
   { path: "/charts", component: () => import("./pages/charts.vue") },
-  { path: "/widgets", component: () => import("./pages/widgets.vue") },
-  {
-    path: "/streaming-plugins",
-    component: () => import("./pages/streaming-plugins.vue"),
-  },
+  { path: "/plugins", component: () => import("./pages/plugins.vue") },
   { path: "/settings", component: () => import("./pages/settings.vue") },
 ];
 

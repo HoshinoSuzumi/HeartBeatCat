@@ -7,8 +7,7 @@ const store = useBrcatStore();
 const navList = ref([
   { title: '设备连接', path: '/' },
   { title: '心率曲线', path: '/charts' },
-  { title: '桌面组件', path: '/widgets' },
-  { title: '推流插件', path: '/streaming-plugins' },
+  { title: '插件管理', path: '/plugins' },
   { title: '设置', path: '/settings' },
 ])
 </script>

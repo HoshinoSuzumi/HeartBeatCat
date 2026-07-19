@@ -10,6 +10,7 @@ declare module 'vue' {
     DevOnly: typeof import('./src/components/DevOnly.vue')['default']
     DrawerContainer: typeof import('./src/components/DrawerContainer.vue')['default']
     PageContainer: typeof import('./src/components/PageContainer.vue')['default']
+    PluginSettingsForm: typeof import('./src/components/PluginSettingsForm.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     ScanningDevice: typeof import('./src/components/ScanningDevice.vue')['default']

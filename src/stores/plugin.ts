@@ -1,93 +1,122 @@
-import { path } from "@tauri-apps/api";
-import { BaseDirectory, exists, mkdir, readDir, readTextFile } from "@tauri-apps/plugin-fs";
-import { defineStore } from "pinia";
-import { ref } from "vue";
+import { path } from "@tauri-apps/api"
+import { BaseDirectory, exists, mkdir, readDir, readTextFile } from "@tauri-apps/plugin-fs"
+import { defineStore } from "pinia"
+import { ref } from "vue"
+import type { LoadedPlugin, PluginManifest, PluginRuntimeState } from "../types/plugin"
 
-export interface PluginManifest {
-  type: 'widget' | 'extension' | 'theme';
-  isBuiltIn?: boolean;
-  id: string;
-  name: string;
-  description?: string;
-  version: string;
-  homepage?: string;
-  icon?: string;
-  author?: {
-    name?: string;
-    email?: string;
-  };
-  widgetMeta?: {
-    index: string;
-    width: number;
-    height: number;
-  };
-  isActivated?: boolean;
+const DEFAULT_STATE: PluginRuntimeState = {
+  widgetActive: false,
+  streamingActive: false,
+  config: {},
 }
 
 export const usePluginManager = defineStore('pluginManager', () => {
-  const plugins = ref<PluginManifest[]>([])
+  const plugins = ref<LoadedPlugin[]>([])
+  const states = ref<Record<string, PluginRuntimeState>>({})
 
-  const _getPluginsFrom = async (baseDir: BaseDirectory, searchPath: string) => {
-    let result: PluginManifest[] = []
+  // ── 从指定目录扫描插件 ──
+  const _scanDir = async (baseDir: BaseDirectory, searchPath: string): Promise<PluginManifest[]> => {
+    const result: PluginManifest[] = []
 
     if (!await exists(searchPath, { baseDir })) {
       await mkdir(searchPath, { baseDir, recursive: true })
+      return result
     }
 
-    const entries = await readDir(searchPath, {
-      baseDir,
-    })
+    const entries = await readDir(searchPath, { baseDir })
 
     for (const entry of entries) {
-      if (entry.isDirectory) {
-        const manifestPath = await path.join(
-          searchPath,
-          entry.name,
-          'hbcat-manifest.json',
-        );
+      if (!entry.isDirectory) continue
 
-        if (!(await exists(manifestPath, { baseDir }))) continue;
+      const manifestPath = await path.join(searchPath, entry.name, 'hbcat-manifest.json')
 
-        const manifest = JSON.parse(
-          await readTextFile(manifestPath, { baseDir }),
-        );
+      if (!(await exists(manifestPath, { baseDir }))) continue
 
-        if (manifest.isBuiltIn) {
-          delete manifest.isBuiltIn;
-        }
-
-        result.push(manifest);
+      try {
+        const raw = JSON.parse(await readTextFile(manifestPath, { baseDir }))
+        // 基本校验
+        if (!raw.manifestVersion || !raw.plugin?.id) continue
+        result.push(raw as PluginManifest)
+      } catch {
+        // 解析失败则跳过
       }
     }
+
     return result
   }
 
+  // ── 获取或初始化插件运行时状态 ──
+  const getState = (pluginId: string): PluginRuntimeState => {
+    if (!states.value[pluginId]) {
+      states.value[pluginId] = { ...DEFAULT_STATE }
+    }
+    return states.value[pluginId]
+  }
+
+  // ── 刷新插件列表（优先级：AppData 用户插件 > Resource 内置插件） ──
   const refreshPlugins = async () => {
-    plugins.value = []
+    const allLoaded: LoadedPlugin[] = []
+    const seen = new Set<string>()
 
-    const builtinPlugins = (await _getPluginsFrom(BaseDirectory.Resource, 'plugins')).map(p => {
-      return {
-        ...p,
-        isBuiltIn: true,
-      }
-    })
-    const userPlugins = await _getPluginsFrom(BaseDirectory.AppData, 'plugins')
-
-    for (const plugin of [...builtinPlugins, ...userPlugins]) {
-      const index = plugins.value.findIndex(p => p.id === plugin.id)
-      if (index === -1) {
-        plugins.value.push(plugin)
-      } else {
-        plugins.value[index] = {
-          ...plugins.value[index],
-          ...plugin,
+    const addIfNew = (manifests: PluginManifest[], builtin: boolean) => {
+      for (const m of manifests) {
+        if (!seen.has(m.plugin.id)) {
+          seen.add(m.plugin.id)
+          allLoaded.push({ manifest: m, builtin })
         }
       }
+    }
+
+    // 1. 用户安装的插件（高优先级）
+    const userPlugins = await _scanDir(BaseDirectory.AppData, 'plugins')
+    addIfNew(userPlugins, false)
+
+    // 2. 内置插件（低优先级）
+    const builtinPlugins = await _scanDir(BaseDirectory.Resource, 'plugins')
+    addIfNew(builtinPlugins, true)
+
+    plugins.value = allLoaded
+  }
+
+  // ── Widget 状态管理 ──
+  const setWidgetActive = (pluginId: string, active: boolean) => {
+    const state = getState(pluginId)
+    state.widgetActive = active
+    states.value[pluginId] = state
+  }
+
+  // ── Streaming 状态管理 ──
+  const setStreamingActive = (pluginId: string, active: boolean) => {
+    const state = getState(pluginId)
+    state.streamingActive = active
+    states.value[pluginId] = state
+  }
+
+  // ── 配置管理 ──
+  const updateConfig = (pluginId: string, config: Record<string, unknown>) => {
+    const state = getState(pluginId)
+    state.config = { ...state.config, ...config }
+    states.value[pluginId] = state
+  }
+
+  // ── 获取插件（合并 manifest + 状态） ──
+  const getPlugin = (pluginId: string) => {
+    const loaded = plugins.value.find(p => p.manifest.plugin.id === pluginId)
+    if (!loaded) return null
+    return {
+      ...loaded,
+      state: getState(pluginId),
     }
   }
 
   return {
     plugins,
+    states,
     refreshPlugins,
+    getState,
+    setWidgetActive,
+    setStreamingActive,
+    updateConfig,
+    getPlugin,
   }
 })
