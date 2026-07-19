@@ -436,60 +436,81 @@ onMounted(() => {
             </div>
 
             <!-- Widget Tab -->
-            <div v-if="activeTab === 'widget' && selectedPlugin.manifest.widget" class="space-y-3">
-              <div class="flex items-center gap-3">
-                <span class="text-sm text-neutral-600">状态:</span>
-                <span
-                  class="w-2 h-2 rounded-full"
-                  :class="selectedPlugin.state.widgetActive ? 'bg-emerald-500' : 'bg-neutral-300'"
-                />
-                <span class="text-sm">{{ selectedPlugin.state.widgetActive ? '运行中' : '未激活' }}</span>
+            <div v-if="activeTab === 'widget' && selectedPlugin.manifest.widget" class="space-y-2">
+              <!-- 状态 -->
+              <div class="flex items-center justify-between">
+                <span class="flex items-center gap-1.5 text-xs text-neutral-500">
+                  <span class="w-1.5 h-1.5 rounded-full" :class="selectedPlugin.state.widgetActive ? 'bg-emerald-500' : 'bg-neutral-300'" />
+                  {{ selectedPlugin.state.widgetActive ? '已启用' : '未启用' }}
+                </span>
+                <button class="btn text-xs" @click="toggleWidget(selectedPlugin)">
+                  {{ selectedPlugin.state.widgetActive ? '停用' : '启用' }}
+                </button>
               </div>
-              <div class="text-sm text-neutral-500 space-y-1">
-                <p>大小: {{ selectedPlugin.manifest.widget.window.width }}×{{ selectedPlugin.manifest.widget.window.height }}</p>
-                <p>置顶: {{ selectedPlugin.manifest.widget.window.alwaysOnTop ? '是' : '否' }}</p>
+
+              <!-- 组件信息 -->
+              <div class="rounded-lg border border-neutral-200 p-3">
+                <h4 class="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">窗口信息</h4>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span class="text-neutral-400">尺寸</span>
+                    <p class="text-neutral-700 font-medium">{{ selectedPlugin.manifest.widget.window.width }} × {{ selectedPlugin.manifest.widget.window.height }}</p>
+                  </div>
+                  <div>
+                    <span class="text-neutral-400">当前缩放</span>
+                    <p class="text-neutral-700 font-medium">{{ selectedPlugin.state.scale.toFixed(1) }}×</p>
+                  </div>
+                  <div>
+                    <span class="text-neutral-400">置顶</span>
+                    <p class="text-neutral-700 font-medium">{{ selectedPlugin.manifest.widget.window.alwaysOnTop ? '是' : '否' }}</p>
+                  </div>
+                  <div>
+                    <span class="text-neutral-400">透明背景</span>
+                    <p class="text-neutral-700 font-medium">{{ selectedPlugin.manifest.widget.window.transparent ? '是' : '否' }}</p>
+                  </div>
+                </div>
               </div>
-              <button
-                class="btn"
-                :class="selectedPlugin.state.widgetActive ? 'outline' : ''"
-                @click="toggleWidget(selectedPlugin)"
-              >
-                {{ selectedPlugin.state.widgetActive ? '停用组件' : '激活组件' }}
-              </button>
+
+              <!-- 运行时设置提示 -->
+              <div class="rounded-lg border border-neutral-200 p-3 bg-neutral-50/50">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <h4 class="text-xs font-semibold text-neutral-500">外观与交互</h4>
+                    <p class="text-2xs text-neutral-400 mt-0.5">透明度、缩放等设置</p>
+                  </div>
+                  <button class="btn outline text-xs py-1" @click="activeTab = 'settings'">前往设置</button>
+                </div>
+              </div>
             </div>
 
             <!-- Streaming Tab -->
-            <div v-if="activeTab === 'streaming' && selectedPlugin.manifest.streaming" class="space-y-3">
-              <div class="flex items-center gap-3">
-                <span class="text-sm text-neutral-600">状态:</span>
-                <span
-                  class="w-2 h-2 rounded-full"
-                  :class="selectedPlugin.state.streamingActive ? 'bg-emerald-500' : 'bg-neutral-300'"
-                />
-                <span class="text-sm">{{ selectedPlugin.state.streamingActive ? '运行中' : '已停止' }}</span>
+            <div v-if="activeTab === 'streaming' && selectedPlugin.manifest.streaming" class="space-y-2">
+              <!-- 状态 -->
+              <div class="flex items-center justify-between">
+                <span class="flex items-center gap-1.5 text-xs text-neutral-500">
+                  <span class="w-1.5 h-1.5 rounded-full" :class="selectedPlugin.state.streamingActive ? 'bg-emerald-500' : 'bg-neutral-300'" />
+                  {{ selectedPlugin.state.streamingActive ? '已启动' : '未启动' }}
+                </span>
+                <button class="btn text-xs" @click="toggleStreaming(selectedPlugin)">
+                  {{ selectedPlugin.state.streamingActive ? '停止' : '启动' }}
+                </button>
               </div>
-              <div>
-                <label class="text-sm text-neutral-600 block mb-1">OBS 浏览器源地址:</label>
-                <div class="flex items-center gap-2">
+
+              <!-- OBS 地址 -->
+              <div class="rounded-lg border border-neutral-200 p-3">
+                <h4 class="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">OBS 浏览器源</h4>
+                <div class="flex items-center gap-2 mb-2">
                   <code class="text-xs bg-neutral-100 px-2 py-1 rounded flex-1 break-all select-all">{{ streamingUrl }}</code>
-                  <button class="btn outline text-xs py-1" @click="copyStreamingUrl">复制</button>
+                  <button class="btn outline text-xs py-1 flex-shrink-0" @click="copyStreamingUrl">复制</button>
+                </div>
+                <div class="flex items-center gap-4 text-xs text-neutral-400">
+                  <span>推荐视口 {{ selectedPlugin.manifest.streaming.viewport.width }}×{{ selectedPlugin.manifest.streaming.viewport.height }}</span>
                 </div>
               </div>
-              <p class="text-xs text-neutral-400">
-                将此地址添加到 OBS 的「浏览器」源中。推荐视口:
-                {{ selectedPlugin.manifest.streaming.viewport.width }}×{{ selectedPlugin.manifest.streaming.viewport.height }}
-              </p>
-              <button
-                class="btn"
-                :class="selectedPlugin.state.streamingActive ? 'outline' : ''"
-                @click="toggleStreaming(selectedPlugin)"
-              >
-                {{ selectedPlugin.state.streamingActive ? '停止服务' : '启动服务' }}
-              </button>
             </div>
 
             <!-- Settings Tab -->
-            <div v-if="activeTab === 'settings'" class="space-y-4">
+            <div v-if="activeTab === 'settings'" class="space-y-2">
               <!-- 通用设置 -->
               <div v-if="selectedPlugin.manifest.widget" class="border border-neutral-200 rounded p-3">
                 <h4 class="text-xs font-semibold text-neutral-600 mb-2">通用设置</h4>
