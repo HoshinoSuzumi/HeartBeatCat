@@ -33,6 +33,5 @@ declare module 'vue' {
     TablerDeviceWatch: typeof import('./src/components/icons/TablerDeviceWatch.vue')['default']
     TablerHeartbeat: typeof import('./src/components/icons/TablerHeartbeat.vue')['default']
     TablerReload: typeof import('./src/components/icons/TablerReload.vue')['default']
-    WidgetListItem: typeof import('./src/components/WidgetListItem.vue')['default']
   }
 }
