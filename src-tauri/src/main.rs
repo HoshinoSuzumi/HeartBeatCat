@@ -451,6 +451,8 @@ async fn open_widget(
         .map_err(|e| format!("创建窗口失败: {}", e))?;
 
     let _ = window.show();
+    let _ = window.show();
+    let _ = window.set_size(tauri::LogicalSize::new(width, height));
     Ok(true)
 }
 
