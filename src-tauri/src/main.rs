@@ -1065,7 +1065,7 @@ async fn main() {
                 .user_agent("Heartbeat Cat Desktop");
 
             #[cfg(target_os = "macos")]
-            use Tauri::TitleBarStyle;
+            use tauri::TitleBarStyle;
 
             #[cfg(target_os = "macos")]
             let win_builder = win_builder.title_bar_style(TitleBarStyle::Transparent);

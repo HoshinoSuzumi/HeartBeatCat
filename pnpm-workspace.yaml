@@ -1,0 +1,4 @@
+allowBuilds:
+  esbuild: true
+  vue-demi: true
+  vue3-snackbar: true
