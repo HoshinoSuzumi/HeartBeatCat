@@ -123,37 +123,14 @@ jobs:
 
       - name: Generate release notes
         run: |
-          echo "# HeartBeatCat ${{ steps.version.outputs.version }}" > release-notes.md
-          echo "" >> release-notes.md
-
           PREV_TAG=$(git tag --sort=-v:refname | sed -n '2p')
-          if [ -z "$PREV_TAG" ]; then
-            echo "### ✨ 首次发布" >> release-notes.md
-            echo "" >> release-notes.md
-            git log --pretty=format:"- %s (@%an)" >> release-notes.md
-          else
-            echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...${GITHUB_REF_NAME}" >> release-notes.md
-            echo "" >> release-notes.md
-            echo "### 更新内容" >> release-notes.md
-            echo "" >> release-notes.md
-            git log --pretty=format:"- %s (@%an)" ${PREV_TAG}..HEAD >> release-notes.md
-          fi
-
-          echo "" >> release-notes.md
-          echo "" >> release-notes.md
-          echo "### 安装包" >> release-notes.md
-          echo "" >> release-notes.md
-          echo "| 平台 | 架构 |" >> release-notes.md
-          echo "|------|------|" >> release-notes.md
-          echo "| macOS | Apple Silicon (aarch64) / Intel (x86_64) |" >> release-notes.md
-          echo "| Windows | x86_64 |" >> release-notes.md
-          echo "| Linux | x86_64 |" >> release-notes.md
+          echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...${GITHUB_REF_NAME}" >> release-notes.md
 
       - name: Create Draft Release
         uses: softprops/action-gh-release@v2
         with:
           draft: true
-          name: HeartBeatCat ${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
           tag_name: ${{ github.ref_name }}
           body_path: release-notes.md
           files: artifacts/**/*
