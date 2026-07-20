@@ -11,7 +11,7 @@
   "app": {
     "windows": [],
     "security": {
-      "csp": "default-src 'self' http://127.0.0.1:9918; script-src 'self' http://127.0.0.1:9918 'unsafe-inline' 'unsafe-eval'; object-src 'none';"
+      "csp": "default-src 'self' http://127.0.0.1:*; script-src 'self' http://127.0.0.1:* 'unsafe-inline' 'unsafe-eval'; object-src 'none';"
     },
     "macOSPrivateApi": true
   },

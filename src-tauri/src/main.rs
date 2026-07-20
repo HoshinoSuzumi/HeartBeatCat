@@ -17,6 +17,20 @@ use tokio::sync::Mutex;
 use tokio::sync::broadcast;
 use warp::Filter;
 
+/// warp 服务器端口号，通过 Tauri State 共享给所有 command
+#[derive(Clone)]
+struct ServerPort(u16);
+
+/// 在指定范围内查找第一个可用的 TCP 端口
+fn find_available_port(start: u16, end: u16) -> Option<u16> {
+    for port in start..=end {
+        if std::net::TcpListener::bind(("127.0.0.1", port)).is_ok() {
+            return Some(port);
+        }
+    }
+    None
+}
+
 /// 解析 AppData 目录下的子路径。
 /// Windows 上优先使用 `%APPDATA%` 环境变量 + bundle identifier，
 /// 以规避 Tauri NSIS 安装到 Program Files 时 BaseDirectory::AppData 解析异常的问题。
@@ -333,9 +347,9 @@ async fn disconnect(connection: State<'_, BleConnection>) -> Result<bool, String
 }
 
 #[tauri::command]
-fn get_widget_url() -> Result<serde_json::Value, String> {
-    let widget_builtin_url = "http://127.0.0.1:9918/widget/builtin";
-    let widget_user_url = "http://127.0.0.1:9918/widget/user";
+fn get_widget_url(port: State<'_, ServerPort>) -> Result<serde_json::Value, String> {
+    let widget_builtin_url = format!("http://127.0.0.1:{}/widget/builtin", port.0);
+    let widget_user_url = format!("http://127.0.0.1:{}/widget/user", port.0);
     let widget_url = serde_json::json!({
         "builtin": widget_builtin_url,
         "user": widget_user_url
@@ -407,6 +421,7 @@ impl SseBroadcaster {
 async fn open_widget(
     plugin_id: String,
     app_handle: AppHandle,
+    port: State<'_, ServerPort>,
 ) -> Result<bool, String> {
     let label = format!("widget_{}", plugin_id);
 
@@ -448,7 +463,7 @@ async fn open_widget(
     let transparent = window_cfg["transparent"].as_bool().unwrap_or(true);
 
     // 构建 URL
-    let url = format!("http://127.0.0.1:9918/p/{}/{}", plugin_id, entry);
+    let url = format!("http://127.0.0.1:{}/p/{}/{}", port.0, plugin_id, entry);
 
     let window = WebviewWindowBuilder::new(&app_handle, &label, WebviewUrl::External(url.parse().unwrap()))
         .title(format!("HBCat 组件 - {}", manifest["plugin"]["name"].as_str().unwrap_or(&plugin_id)))
@@ -600,8 +615,13 @@ async fn stop_streaming(
 }
 
 #[tauri::command]
-fn get_streaming_url(plugin_id: String) -> Result<String, String> {
-    Ok(format!("http://127.0.0.1:9918/p/{}/streaming/index.html", plugin_id))
+fn get_streaming_url(plugin_id: String, port: State<'_, ServerPort>) -> Result<String, String> {
+    Ok(format!("http://127.0.0.1:{}/p/{}/streaming/index.html", port.0, plugin_id))
+}
+
+#[tauri::command]
+fn get_server_port(port: State<'_, ServerPort>) -> Result<u16, String> {
+    Ok(port.0)
 }
 
 #[tauri::command]
@@ -902,6 +922,7 @@ async fn main() {
             start_streaming,
             stop_streaming,
             get_streaming_url,
+            get_server_port,
             get_plugin_config,
             set_plugin_config,
             install_plugin,
@@ -927,11 +948,25 @@ async fn main() {
                 .unwrap();
             let appdata_plugins = resolve_appdata(&app_handle, "plugins");
 
+            // 在 19918-19928 范围内自动选择第一个可用端口
+            let server_port = find_available_port(19918, 19928)
+                .expect("无法在 19918-19928 范围内找到可用端口");
+            eprintln!("[warp] 选定端口: {}", server_port);
+            app_handle.manage(ServerPort(server_port));
+
             std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new().unwrap();
                 rt.block_on(async move {
                     let rp = resource_plugins.clone();
                     let ap = appdata_plugins.clone();
+
+                    // 确保插件目录存在
+                    if let Err(e) = std::fs::create_dir_all(&rp) {
+                        eprintln!("[warp] 无法创建 resource plugins 目录 {:?}: {}", rp, e);
+                    }
+                    if let Err(e) = std::fs::create_dir_all(&ap) {
+                        eprintln!("[warp] 无法创建 appdata plugins 目录 {:?}: {}", ap, e);
+                    }
 
                     // /p/{id}/{*path} — 统一插件静态文件路由（放在最后作为 fallback）
                     let plugin_files = warp::path("p")
@@ -1054,7 +1089,16 @@ async fn main() {
 
                     let routes = sse_route.or(config_route).or(status_route).or(plugin_files);
 
-                    warp::serve(routes).run(([127, 0, 0, 1], 9918)).await;
+                    let addr = ([127, 0, 0, 1], server_port);
+                    eprintln!("[warp] 正在绑定 http://127.0.0.1:{} ...", server_port);
+                    let server = tokio::spawn(async move {
+                        warp::serve(routes).run(addr).await;
+                    });
+                    match server.await {
+                        Ok(()) => eprintln!("[warp] 服务器正常退出"),
+                        Err(e) if e.is_panic() => eprintln!("[warp] 服务器 panic: {:?}", e),
+                        Err(e) => eprintln!("[warp] 服务器被取消: {}", e),
+                    }
                 });
             });
 

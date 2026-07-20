@@ -17,6 +17,15 @@ const snackbar = useSnackbar()
 
 const selectedId = ref<string | null>(null)
 const activeTab = ref<'widget' | 'streaming' | 'settings'>('widget')
+const serverPort = ref(19918)
+
+onMounted(async () => {
+  try {
+    serverPort.value = await invoke<number>('get_server_port')
+  } catch {
+    // 保持默认值
+  }
+})
 
 // ── 插件列表（合并运行时状态） ──
 const pluginList = computed(() =>
@@ -116,7 +125,7 @@ const streamingUrl = computed(() => {
   const id = selectedPlugin.value?.manifest.plugin.id
   if (!id) return ''
   const entry = selectedPlugin.value?.manifest.streaming?.entry ?? 'index.html'
-  return `http://127.0.0.1:9918/p/${id}/${entry}`
+  return `http://127.0.0.1:${serverPort.value}/p/${id}/${entry}`
 })
 
 const copyStreamingUrl = () => {

@@ -9,7 +9,7 @@
   ],
   "remote": {
     "urls": [
-      "http://127.0.0.1:9918"
+      "http://127.0.0.1:*"
     ]
   },
   "permissions": [
