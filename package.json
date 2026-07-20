@@ -1,9 +1,10 @@
 {
   "name": "heartbeat-cat",
   "private": true,
-  "version": "2.0.0-buildtest.5",
+  "version": "2.0.0-buildtest.6",
   "type": "module",
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks || true",
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "sync-version": "node scripts/sync-version.mjs",
