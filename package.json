@@ -34,5 +34,6 @@
     "unplugin-vue-components": "^0.27.2",
     "vite": "^5.3.3",
     "vue-tsc": "^2.0.26"
-  }
+  },
+  "packageManager": "pnpm@11.15.0+sha512.266f8957a30d2be6e9468e5e66bcdedd35a794175f71b067ba8504d686cce1d0c0f429b33c323c3c569ad4891e667574a49ff71d1b89a22cc66f13c65818c578"
 }
