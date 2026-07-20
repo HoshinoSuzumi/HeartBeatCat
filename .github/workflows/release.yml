@@ -25,6 +25,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify version consistency
+        shell: bash
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          echo "Tag version: $TAG_VERSION"
+
+          node -e "
+          const assert = require('assert');
+          const tag = '$TAG_VERSION';
+
+          const pkg = require('./package.json');
+          assert.strictEqual(pkg.version, tag, 'package.json version mismatch: ' + pkg.version + ' != ' + tag);
+
+          const conf = require('./src-tauri/tauri.conf.json');
+          assert.strictEqual(conf.version, tag, 'tauri.conf.json version mismatch: ' + conf.version + ' != ' + tag);
+
+          const cargo = require('fs').readFileSync('src-tauri/Cargo.toml', 'utf8');
+          const m = cargo.match(/^version\s*=\s*\"([^\"]+)\"/m);
+          assert.ok(m, 'Cargo.toml missing version field');
+          assert.strictEqual(m[1], tag, 'Cargo.toml version mismatch: ' + m[1] + ' != ' + tag);
+
+          console.log('All versions match:', tag);
+          "
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 

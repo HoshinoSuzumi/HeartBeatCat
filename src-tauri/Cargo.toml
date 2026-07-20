@@ -1,6 +1,6 @@
 [package]
 name = "heartbeat-cat"
-version = "0.0.1"
+version = "2.0.0-buildtest.5"
 description = "Catch your heartbeats"
 authors = ["TimothyYin"]
 edition = "2021"

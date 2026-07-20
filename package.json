@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
-    "sync-version": "node -e \"const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json')); const tauriConfPath = 'src-tauri/tauri.conf.json'; const conf = JSON.parse(fs.readFileSync(tauriConfPath)); conf.version = pkg.version; fs.writeFileSync(tauriConfPath, JSON.stringify(conf, null, 2));\"",
+    "sync-version": "node scripts/sync-version.mjs",
     "preview": "vite preview",
     "tauri": "tauri"
   },
