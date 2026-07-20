@@ -15,6 +15,8 @@ use tauri::{AppHandle, Emitter, Listener, Manager, RunEvent, State, WebviewUrl, 
 use tokio;
 use tokio::sync::Mutex;
 use tokio::sync::broadcast;
+use tracing::{debug, error, info, trace, warn};
+use tracing_subscriber::EnvFilter;
 use warp::Filter;
 
 /// warp 服务器端口号，通过 Tauri State 共享给所有 command
@@ -75,6 +77,7 @@ impl BleConnection {
     }
 
     pub async fn start_scan(&self) -> Result<(), String> {
+        info!("Starting BLE scan");
         let central = self.central.lock().await;
         if let Err(e) = central
             .as_ref()
@@ -82,17 +85,22 @@ impl BleConnection {
             .start_scan(ScanFilter { services: vec![] })
             .await
         {
+            error!("Failed to start BLE scan: {}", e);
             return Err(e.to_string());
         } else {
+            info!("BLE scan started successfully");
             Ok(())
         }
     }
 
     pub async fn stop_scan(&self) -> Result<(), String> {
+        info!("Stopping BLE scan");
         let central = self.central.lock().await;
         if let Err(e) = central.as_ref().unwrap().stop_scan().await {
+            error!("Failed to stop BLE scan: {}", e);
             return Err(e.to_string());
         } else {
+            info!("BLE scan stopped");
             Ok(())
         }
     }
@@ -107,6 +115,7 @@ impl BleConnection {
         peripheral_id: String,
         app: &AppHandle,
     ) -> Result<(), Box<dyn Error>> {
+        info!("Connecting to BLE device: {}", peripheral_id);
         self.stop_scan().await.unwrap();
         let central = self.central.lock().await;
         let peripheral = central
@@ -116,7 +125,11 @@ impl BleConnection {
             .await?
             .into_iter()
             .find(|p| p.id().to_string() == peripheral_id)
-            .ok_or_else(|| "5010")?;
+            .ok_or_else(|| {
+                error!("BLE device not found: {}", peripheral_id);
+                "5010"
+            })?;
+        debug!("BLE peripheral found, establishing connection...");
         peripheral.connect().await?;
         peripheral.discover_services().await?;
         // 如果 peripheral.services() 不包含 0x180D 服务，则返回错误
@@ -125,8 +138,10 @@ impl BleConnection {
             .iter()
             .any(|s| s.uuid == uuid_from_u16(0x180D))
         {
+            error!("Heart Rate Service (0x180D) not found on device {}", peripheral_id);
             return Err("5011".into());
         }
+        info!("Heart Rate Service (0x180D) found on device");
 
         self.set_peripheral(Some(peripheral)).await;
 
@@ -171,7 +186,10 @@ impl BleConnection {
             .unwrap()
             .subscribe(&characteristic)
             .await?;
+        info!("Subscribed to Heart Rate Measurement characteristic (0x2A37)");
+
         let app_clone = app.clone();
+        let device_name = device.name.clone();
 
         tokio::spawn(async move {
             let mut notification_stream =
@@ -179,28 +197,34 @@ impl BleConnection {
             while let Some(notification) = notification_stream.next().await {
                 if notification.uuid == uuid_from_u16(0x2A37) {
                     let value = notification.value;
-                    println!("Received notification: {:?}", value);
+                    trace!("Heart rate notification raw data: {:?}", value);
                     if value.len() < 2 {
+                        warn!("Heart rate notification too short: {} bytes", value.len());
                         continue;
                     }
                     let heart_rate = value[1];
                     app_clone.emit("heart-rate", heart_rate).unwrap();
                 }
             }
+            warn!("Heart rate notification stream ended for device: {}", device_name);
         });
 
+        info!("BLE device connected: {} ({})", device.name, device.peripheral_id);
         app.emit("device-connected", device).unwrap();
         Ok(())
     }
 
     pub async fn disconnect(&self) -> Result<(), Box<dyn Error>> {
+        info!("Disconnecting BLE device");
         let mut peripheral = self.peripheral.lock().await;
         peripheral.as_ref().unwrap().disconnect().await?;
         *peripheral = None;
+        info!("BLE device disconnected");
         Ok(())
     }
 
     pub async fn register_central_events(&self, app: &AppHandle) {
+        info!("Registering BLE central events");
         let central = self.central.lock().await;
         let central_clone = central.clone(); // Clone the central variable
         let app_handle = app.clone(); // Clone the AppHandle to move into the tokio::spawn closure
@@ -221,6 +245,7 @@ impl BleConnection {
                         if let Ok(Some(props)) = p.properties().await {
                             let name = props.local_name.unwrap_or("Unknown".to_string());
                             let rssi = props.rssi.unwrap_or(0);
+                            trace!("BLE device discovered/updated: {} (RSSI: {})", name, rssi);
                             let device = BleDevice {
                                 peripheral_id: peripheral_id.to_string(),
                                 name,
@@ -234,6 +259,7 @@ impl BleConnection {
                         let mut p = self_clone.peripheral.lock().await;
                         if let Some(peri) = p.as_ref() {
                             if peri.id() == peripheral {
+                                info!("BLE device unexpectedly disconnected: {}", peripheral);
                                 app_handle
                                     .emit("device-disconnected", peripheral.to_string())
                                     .unwrap();
@@ -244,6 +270,7 @@ impl BleConnection {
                     _ => {}
                 }
             }
+            warn!("BLE central event stream ended");
         });
     }
     // implements a Clone
@@ -262,6 +289,7 @@ async fn register_central_events<'a>(
     connection: State<'a, BleConnection>,
 ) -> Result<bool, String> {
     if *connection._is_events_registered.lock().await {
+        debug!("BLE central events already registered, skipping");
         return Ok(false);
     } else {
         connection.register_central_events(&app_handle).await;
@@ -331,6 +359,7 @@ async fn connect(
     app_handle: AppHandle,
 ) -> Result<bool, String> {
     if let Err(e) = connection.connect(peripheral_id, &app_handle).await {
+        error!("BLE connect command failed: {}", e);
         Err(e.to_string())
     } else {
         Ok(true)
@@ -340,6 +369,7 @@ async fn connect(
 #[tauri::command]
 async fn disconnect(connection: State<'_, BleConnection>) -> Result<bool, String> {
     if let Err(e) = connection.disconnect().await {
+        error!("BLE disconnect command failed: {}", e);
         Err(e.to_string())
     } else {
         Ok(true)
@@ -354,6 +384,7 @@ fn get_widget_url(port: State<'_, ServerPort>) -> Result<serde_json::Value, Stri
         "builtin": widget_builtin_url,
         "user": widget_user_url
     });
+    debug!("Widget URLs: builtin={}, user={}", widget_builtin_url, widget_user_url);
     Ok(widget_url)
 }
 
@@ -423,10 +454,12 @@ async fn open_widget(
     app_handle: AppHandle,
     port: State<'_, ServerPort>,
 ) -> Result<bool, String> {
+    info!("Opening widget for plugin: {}", plugin_id);
     let label = format!("widget_{}", plugin_id);
 
     // 检查窗口是否已存在
     if let Some(window) = app_handle.get_webview_window(&label) {
+        debug!("Widget window already exists, bringing to front: {}", label);
         let _ = window.show();
         let _ = window.set_focus();
         return Ok(true);
@@ -437,22 +470,34 @@ async fn open_widget(
     let appdata_plugins = resolve_appdata(&app_handle, "plugins");
 
     let plugin_dir = if appdata_plugins.join(&plugin_id).exists() {
+        debug!("Using appdata plugin directory for: {}", plugin_id);
         appdata_plugins.join(&plugin_id)
     } else if resource_plugins.join(&plugin_id).exists() {
+        debug!("Using builtin plugin directory for: {}", plugin_id);
         resource_plugins.join(&plugin_id)
     } else {
+        error!("Plugin not found: {}", plugin_id);
         return Err(format!("插件 '{}' 未找到", plugin_id));
     };
 
     // 读取 manifest 获取 widget entry
     let manifest_path = plugin_dir.join("hbcat-manifest.json");
     let manifest_content = std::fs::read_to_string(&manifest_path)
-        .map_err(|e| format!("读取 manifest 失败: {}", e))?;
+        .map_err(|e| {
+            error!("Failed to read manifest for plugin {}: {}", plugin_id, e);
+            format!("读取 manifest 失败: {}", e)
+        })?;
     let manifest: serde_json::Value = serde_json::from_str(&manifest_content)
-        .map_err(|e| format!("解析 manifest 失败: {}", e))?;
+        .map_err(|e| {
+            error!("Failed to parse manifest for plugin {}: {}", plugin_id, e);
+            format!("解析 manifest 失败: {}", e)
+        })?;
 
     let widget = manifest["widget"].as_object()
-        .ok_or("该插件不支持桌面组件")?;
+        .ok_or_else(|| {
+            warn!("Plugin {} does not support widgets", plugin_id);
+            "该插件不支持桌面组件"
+        })?;
     let entry = widget["entry"].as_str()
         .unwrap_or("widget/index.html");
     let window_cfg = &widget["window"];
@@ -464,6 +509,7 @@ async fn open_widget(
 
     // 构建 URL
     let url = format!("http://127.0.0.1:{}/p/{}/{}", port.0, plugin_id, entry);
+    debug!("Widget URL for {}: {}", plugin_id, url);
 
     let window = WebviewWindowBuilder::new(&app_handle, &label, WebviewUrl::External(url.parse().unwrap()))
         .title(format!("HBCat 组件 - {}", manifest["plugin"]["name"].as_str().unwrap_or(&plugin_id)))
@@ -479,6 +525,7 @@ async fn open_widget(
 
     let _ = window.show();
     let _ = window.set_size(tauri::LogicalSize::new(width, height));
+    info!("Widget window created for plugin {}: {}x{}, alwaysOnTop={}, transparent={}", plugin_id, width, height, always_on_top, transparent);
 
     // 恢复保存的位置和运行时设置
     let config_dir = resolve_appdata(&app_handle, "plugin-config");
@@ -524,10 +571,12 @@ async fn close_widget(
     plugin_id: String,
     app_handle: AppHandle,
 ) -> Result<bool, String> {
+    info!("Closing widget for plugin: {}", plugin_id);
     let label = format!("widget_{}", plugin_id);
     if let Some(window) = app_handle.get_webview_window(&label) {
         // 保存窗口位置
         if let Ok(pos) = window.outer_position() {
+            debug!("Saving widget position for {}: ({}, {})", plugin_id, pos.x, pos.y);
             let config_dir = resolve_appdata(&app_handle, "plugin-config");
             let _ = std::fs::create_dir_all(&config_dir);
             let config_path = config_dir.join(format!("{}.json", plugin_id));
@@ -557,6 +606,7 @@ async fn set_widget_opacity(
     opacity: f64,
     app_handle: AppHandle,
 ) -> Result<bool, String> {
+    debug!("Setting widget opacity for {}: {}", plugin_id, opacity);
     let label = format!("widget_{}", plugin_id);
     if let Some(webview) = app_handle.get_webview_window(&label) {
         let js = format!("document.documentElement.style.opacity = '{}'", opacity);
@@ -573,6 +623,7 @@ async fn set_widget_scale(
     scale: f64,
     app_handle: AppHandle,
 ) -> Result<bool, String> {
+    debug!("Setting widget scale for {}: {} ({}x{})", plugin_id, scale, base_width, base_height);
     let label = format!("widget_{}", plugin_id);
     if let Some(window) = app_handle.get_webview_window(&label) {
         let _ = window.set_size(tauri::LogicalSize::new(
@@ -589,6 +640,7 @@ async fn set_widget_click_through(
     click_through: bool,
     app_handle: AppHandle,
 ) -> Result<bool, String> {
+    debug!("Setting widget click-through for {}: {}", plugin_id, click_through);
     let label = format!("widget_{}", plugin_id);
     if let Some(window) = app_handle.get_webview_window(&label) {
         let _ = window.set_ignore_cursor_events(click_through);
@@ -601,6 +653,7 @@ async fn start_streaming(
     plugin_id: String,
     broadcaster: State<'_, SseBroadcaster>,
 ) -> Result<bool, String> {
+    info!("Starting streaming for plugin: {}", plugin_id);
     broadcaster.activate(&plugin_id).await;
     Ok(true)
 }
@@ -610,13 +663,16 @@ async fn stop_streaming(
     plugin_id: String,
     broadcaster: State<'_, SseBroadcaster>,
 ) -> Result<bool, String> {
+    info!("Stopping streaming for plugin: {}", plugin_id);
     broadcaster.deactivate(&plugin_id).await;
     Ok(true)
 }
 
 #[tauri::command]
 fn get_streaming_url(plugin_id: String, port: State<'_, ServerPort>) -> Result<String, String> {
-    Ok(format!("http://127.0.0.1:{}/p/{}/streaming/index.html", port.0, plugin_id))
+    let url = format!("http://127.0.0.1:{}/p/{}/streaming/index.html", port.0, plugin_id);
+    debug!("Streaming URL for {}: {}", plugin_id, url);
+    Ok(url)
 }
 
 #[tauri::command]
@@ -629,6 +685,7 @@ async fn get_plugin_config(
     plugin_id: String,
     app_handle: AppHandle,
 ) -> Result<serde_json::Value, String> {
+    debug!("Getting config for plugin: {}", plugin_id);
     let config_dir = resolve_appdata(&app_handle, "plugin-config");
     std::fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
     let config_path = config_dir.join(format!("{}.json", plugin_id));
@@ -646,6 +703,7 @@ async fn set_plugin_config(
     config: serde_json::Value,
     app_handle: AppHandle,
 ) -> Result<bool, String> {
+    debug!("Setting config for plugin: {}", plugin_id);
     let config_dir = resolve_appdata(&app_handle, "plugin-config");
     std::fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
     let config_path = config_dir.join(format!("{}.json", plugin_id));
@@ -690,12 +748,19 @@ async fn install_plugin(
     force: Option<bool>,
     app_handle: AppHandle,
 ) -> Result<serde_json::Value, String> {
+    info!("Installing plugin from: {}", file_path);
     let plugins_dir = resolve_appdata(&app_handle, "plugins");
     std::fs::create_dir_all(&plugins_dir).map_err(|e| e.to_string())?;
 
     // 读取 zip 文件，提取 manifest
-    let file = std::fs::File::open(&file_path).map_err(|e| format!("无法打开文件: {}", e))?;
-    let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("无法读取插件包: {}", e))?;
+    let file = std::fs::File::open(&file_path).map_err(|e| {
+        error!("Failed to open plugin file {}: {}", file_path, e);
+        format!("无法打开文件: {}", e)
+    })?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| {
+        error!("Failed to read plugin archive {}: {}", file_path, e);
+        format!("无法读取插件包: {}", e)
+    })?;
 
     let mut manifest: Option<serde_json::Value> = None;
     for i in 0..archive.len() {
@@ -708,17 +773,23 @@ async fn install_plugin(
         }
     }
 
-    let manifest = manifest.ok_or("插件包中未找到 hbcat-manifest.json")?;
+    let manifest = manifest.ok_or_else(|| {
+        error!("Plugin archive missing hbcat-manifest.json");
+        "插件包中未找到 hbcat-manifest.json"
+    })?;
     let plugin_id = manifest["plugin"]["id"].as_str()
         .ok_or("manifest 缺少 plugin.id")?
         .to_string();
     let plugin_name = manifest["plugin"]["name"].as_str().unwrap_or(&plugin_id);
     let new_version = manifest["plugin"]["version"].as_str().unwrap_or("0.0.0");
 
+    info!("Plugin manifest parsed: id={}, name={}, version={}", plugin_id, plugin_name, new_version);
+
     // ── 内置插件冲突检测：不允许安装与内置插件 ID 相同的插件 ──
     let resource_plugins = app_handle.path().resolve("plugins", BaseDirectory::Resource).unwrap();
     let builtin_manifest_path = resource_plugins.join(&plugin_id).join("hbcat-manifest.json");
     if builtin_manifest_path.exists() {
+        warn!("Cannot install plugin '{}': conflicts with builtin plugin", plugin_id);
         return Err(format!("BUILTIN:{}", plugin_name));
     }
 
@@ -732,10 +803,12 @@ async fn install_plugin(
             let old_version = existing_json["plugin"]["version"].as_str().unwrap_or("0.0.0");
 
             if old_version == new_version {
+                debug!("Plugin {} already at version {}, skipping", plugin_id, old_version);
                 return Err(format!("SAME_VERSION:{}", old_version));
             }
 
             if !force.unwrap_or(false) {
+                info!("Plugin {} version conflict: {} -> {}, awaiting user confirmation", plugin_id, old_version, new_version);
                 // 需要用户确认升级/降级
                 return Ok(serde_json::json!({
                     "action": "confirm",
@@ -750,13 +823,15 @@ async fn install_plugin(
 
     // ── 执行安装 ──
     if target_dir.exists() {
+        info!("Overwriting existing plugin directory for: {}", plugin_id);
         std::fs::remove_dir_all(&target_dir).map_err(|e| format!("无法覆盖已安装的插件: {}", e))?;
     }
 
     let file = std::fs::File::open(&file_path).map_err(|e| format!("无法重新打开文件: {}", e))?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("无法读取插件包: {}", e))?;
+    let total_entries = archive.len();
 
-    for i in 0..archive.len() {
+    for i in 0..total_entries {
         let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
         let name = entry.name().to_string();
         let target_path = target_dir.join(&name);
@@ -772,6 +847,8 @@ async fn install_plugin(
         }
     }
 
+    info!("Plugin {} extracted: {} entries", plugin_id, total_entries);
+
     // 初始化默认配置
     if let Some(settings) = manifest.get("settings") {
         let config_dir = resolve_appdata(&app_handle, "plugin-config");
@@ -781,16 +858,19 @@ async fn install_plugin(
             let defaults = extract_defaults(settings);
             let content = serde_json::to_string_pretty(&defaults).map_err(|e| e.to_string())?;
             std::fs::write(&config_path, content).map_err(|e| e.to_string())?;
+            debug!("Initialized default config for plugin: {}", plugin_id);
         }
     }
 
     let old_version = if force.unwrap_or(false) { Some("") } else { None };
-    Ok(serde_json::json!({
+    let result = serde_json::json!({
         "action": if old_version.is_some() { "upgraded" } else { "installed" },
         "pluginId": plugin_id,
         "pluginName": plugin_name,
         "version": new_version
-    }))
+    });
+    info!("Plugin installed successfully: {} v{}", plugin_name, new_version);
+    Ok(result)
 }
 
 fn extract_defaults(schema: &serde_json::Value) -> serde_json::Value {
@@ -813,6 +893,8 @@ async fn close_all_widgets(app_handle: AppHandle) -> Result<bool, String> {
         .filter(|label| label.starts_with("widget_"))
         .cloned()
         .collect();
+
+    info!("Closing all widget windows ({} total)", windows.len());
 
     for label in &windows {
         if let Some(window) = app_handle.get_webview_window(label) {
@@ -852,6 +934,7 @@ async fn uninstall_plugin(
     plugin_id: String,
     app_handle: AppHandle,
 ) -> Result<bool, String> {
+    info!("Uninstalling plugin: {}", plugin_id);
     let plugins_dir = resolve_appdata(&app_handle, "plugins");
     let plugin_dir = plugins_dir.join(&plugin_id);
     if plugin_dir.exists() {
@@ -863,11 +946,22 @@ async fn uninstall_plugin(
     if config_path.exists() {
         std::fs::remove_file(&config_path).map_err(|e| e.to_string())?;
     }
+    info!("Plugin uninstalled: {}", plugin_id);
     Ok(true)
 }
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new("info")),
+        )
+        .with_target(false)
+        .init();
+
+    info!("Heartbeat Cat starting up");
+
     let ble_manager = BtleManager::new().await.unwrap();
     let central = ble_manager
         .adapters()
@@ -876,12 +970,14 @@ async fn main() {
         .into_iter()
         .nth(0)
         .unwrap();
+    info!("BLE adapter found");
 
     let mut builder = tauri::Builder::default();
 
     #[cfg(desktop)]
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            info!("Single instance: another instance attempted to launch, focusing existing window");
             if let Some(window) = app.get_window("main") {
                 if !window.is_visible().unwrap_or(true) {
                     let _ = window.show();
@@ -937,10 +1033,12 @@ async fn main() {
                 let payload = event.payload();
                 let bc = sse_bc.clone();
                 let data = payload.to_string();
+                trace!("Broadcasting heart-rate to SSE: {}", data);
                 tokio::spawn(async move {
                     bc.broadcast_all("heart-rate", &data).await;
                 });
             });
+            debug!("Heart-rate SSE broadcast listener registered");
 
             let resource_plugins = app_handle
                 .path()
@@ -951,7 +1049,7 @@ async fn main() {
             // 在 19918-19928 范围内自动选择第一个可用端口
             let server_port = find_available_port(19918, 19928)
                 .expect("无法在 19918-19928 范围内找到可用端口");
-            eprintln!("[warp] 选定端口: {}", server_port);
+            info!("Warp server selected port: {}", server_port);
             app_handle.manage(ServerPort(server_port));
 
             std::thread::spawn(move || {
@@ -962,10 +1060,10 @@ async fn main() {
 
                     // 确保插件目录存在
                     if let Err(e) = std::fs::create_dir_all(&rp) {
-                        eprintln!("[warp] 无法创建 resource plugins 目录 {:?}: {}", rp, e);
+                        error!("Failed to create resource plugins directory {:?}: {}", rp, e);
                     }
                     if let Err(e) = std::fs::create_dir_all(&ap) {
-                        eprintln!("[warp] 无法创建 appdata plugins 目录 {:?}: {}", ap, e);
+                        error!("Failed to create appdata plugins directory {:?}: {}", ap, e);
                     }
 
                     // /p/{id}/{*path} — 统一插件静态文件路由（放在最后作为 fallback）
@@ -1017,12 +1115,17 @@ async fn main() {
                             let bc = bc.clone();
                             async move {
                                 if !bc.is_active(&plugin_id).await {
+                                    debug!("SSE connection rejected: streaming not active for plugin {}", plugin_id);
                                     return Err(warp::reject::not_found());
                                 }
                                 let mut rx = match bc.subscribe(&plugin_id).await {
                                     Some(rx) => rx,
-                                    None => return Err(warp::reject::not_found()),
+                                    None => {
+                                        warn!("SSE subscribe failed for plugin {}", plugin_id);
+                                        return Err(warp::reject::not_found());
+                                    }
                                 };
+                                info!("SSE client connected for plugin: {}", plugin_id);
                                 let stream = async_stream::stream! {
                                     // 发送初始连接确认
                                     yield Ok::<_, Infallible>(warp::sse::Event::default()
@@ -1038,14 +1141,22 @@ async fn main() {
                                                 let data = parts.get(1)
                                                     .unwrap_or(&"")
                                                     .trim_end_matches("\n\n");
+                                                trace!("SSE event for {}: {} -> {}", plugin_id, event_name, data);
                                                 yield Ok::<_, Infallible>(warp::sse::Event::default()
                                                     .event(event_name)
                                                     .data(data.to_string()));
                                             }
-                                            Err(broadcast::error::RecvError::Lagged(_)) => continue,
-                                            Err(broadcast::error::RecvError::Closed) => break,
+                                            Err(broadcast::error::RecvError::Lagged(n)) => {
+                                                warn!("SSE client for {} lagged by {} messages", plugin_id, n);
+                                                continue;
+                                            }
+                                            Err(broadcast::error::RecvError::Closed) => {
+                                                info!("SSE broadcast channel closed for plugin: {}", plugin_id);
+                                                break;
+                                            }
                                         }
                                     }
+                                    info!("SSE client disconnected for plugin: {}", plugin_id);
                                 };
                                 Ok::<_, warp::Rejection>(warp::sse::reply(warp::sse::keep_alive().stream(stream)))
                             }
@@ -1090,14 +1201,14 @@ async fn main() {
                     let routes = sse_route.or(config_route).or(status_route).or(plugin_files);
 
                     let addr = ([127, 0, 0, 1], server_port);
-                    eprintln!("[warp] 正在绑定 http://127.0.0.1:{} ...", server_port);
+                    info!("Warp server binding to http://127.0.0.1:{}", server_port);
                     let server = tokio::spawn(async move {
                         warp::serve(routes).run(addr).await;
                     });
                     match server.await {
-                        Ok(()) => eprintln!("[warp] 服务器正常退出"),
-                        Err(e) if e.is_panic() => eprintln!("[warp] 服务器 panic: {:?}", e),
-                        Err(e) => eprintln!("[warp] 服务器被取消: {}", e),
+                        Ok(()) => info!("Warp server shut down normally"),
+                        Err(e) if e.is_panic() => error!("Warp server panic: {:?}", e),
+                        Err(e) => error!("Warp server cancelled: {}", e),
                     }
                 });
             });
@@ -1115,6 +1226,7 @@ async fn main() {
             let win_builder = win_builder.title_bar_style(TitleBarStyle::Transparent);
 
             let _ = win_builder.build().unwrap();
+            info!("Main window created");
 
             // #[cfg(target_os = "macos")]
             // {
@@ -1143,6 +1255,7 @@ async fn main() {
                 // macOS Dock 图标点击时，如果主窗口隐藏则重新显示
                 #[cfg(target_os = "macos")]
                 RunEvent::Reopen { .. } => {
+                    info!("macOS Dock reopen event received");
                     if let Some(window) = app_handle.get_webview_window("main") {
                         let _ = window.show();
                         let _ = window.unminimize();
@@ -1150,6 +1263,7 @@ async fn main() {
                     }
                 }
                 RunEvent::Exit => {
+                    info!("Application exiting, cleaning up widget windows");
                     // 安全网：退出前关闭所有小组件窗口
                     let windows: Vec<String> = app_handle
                         .webview_windows()
