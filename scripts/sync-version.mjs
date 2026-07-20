@@ -18,4 +18,14 @@ const replaced = cargo.replace(
 );
 writeFileSync(cargoPath, replaced);
 
-console.log(`Synced version ${version} to tauri.conf.json and Cargo.toml`);
+// Cargo.lock — update version in the [[package]] block for heartbeat-cat
+const lockPath = 'src-tauri/Cargo.lock';
+const lock = readFileSync(lockPath, 'utf8');
+// Match the [[package]] entry for heartbeat-cat, then replace its version line
+const lockReplaced = lock.replace(
+  /(\[\[package\]\]\nname = "heartbeat-cat"\n)version = "[^"]*"/,
+  `$1version = "${version}"`,
+);
+writeFileSync(lockPath, lockReplaced);
+
+console.log(`Synced version ${version} to tauri.conf.json, Cargo.toml, and Cargo.lock`);
