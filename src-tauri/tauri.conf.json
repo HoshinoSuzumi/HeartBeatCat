@@ -38,7 +38,8 @@
       "nsis": {
         "installerIcon": "icons/icon.ico",
         "installMode": "both"
-      }
+      },
+      "wix": null
     }
   }
 }

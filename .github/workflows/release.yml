@@ -32,7 +32,6 @@ jobs:
             target: x86_64-pc-windows-msvc
             paths: |
               src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
-              src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
 
     runs-on: ${{ matrix.runner }}
     steps:
