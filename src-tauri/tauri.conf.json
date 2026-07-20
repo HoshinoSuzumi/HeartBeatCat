@@ -17,7 +17,14 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": [
+      "deb",
+      "rpm",
+      "appimage",
+      "nsis",
+      "app",
+      "dmg"
+    ],
     "publisher": "TimothyYin",
     "copyright": "2025 TimothyYin",
     "category": "Utility",
