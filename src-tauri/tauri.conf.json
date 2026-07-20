@@ -1,6 +1,6 @@
 {
   "productName": "HeartBeatCat",
-  "version": "2.0.0-buildtest.7",
+  "version": "2.0.0-buildtest.8",
   "identifier": "ga.bh8.heartbeat-cat",
   "build": {
     "beforeDevCommand": "pnpm dev",
