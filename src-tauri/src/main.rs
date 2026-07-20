@@ -1095,19 +1095,30 @@ async fn main() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
-            if let RunEvent::Exit = event {
-                // 安全网：退出前关闭所有小组件窗口
-                let windows: Vec<String> = app_handle
-                    .webview_windows()
-                    .keys()
-                    .filter(|label| label.starts_with("widget_"))
-                    .cloned()
-                    .collect();
-                for label in &windows {
-                    if let Some(window) = app_handle.get_webview_window(label) {
-                        let _ = window.close();
+            match event {
+                // macOS Dock 图标点击时，如果主窗口隐藏则重新显示
+                RunEvent::Reopen { .. } => {
+                    if let Some(window) = app_handle.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.unminimize();
+                        let _ = window.set_focus();
                     }
                 }
+                RunEvent::Exit => {
+                    // 安全网：退出前关闭所有小组件窗口
+                    let windows: Vec<String> = app_handle
+                        .webview_windows()
+                        .keys()
+                        .filter(|label| label.starts_with("widget_"))
+                        .cloned()
+                        .collect();
+                    for label in &windows {
+                        if let Some(window) = app_handle.get_webview_window(label) {
+                            let _ = window.close();
+                        }
+                    }
+                }
+                _ => {}
             }
         });
 }

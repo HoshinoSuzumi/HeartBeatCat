@@ -136,12 +136,16 @@ onBeforeMount(async () => {
     icon: (await defaultWindowIcon()) || undefined,
     tooltip: 'HeartBeat Cat',
     action: (event) => {
-      switch (event.type) {
-        case 'DoubleClick':
-          showMainWindow()
-          break
+      if (event.type === 'Click' && event.button === 'Left') {
+        showMainWindow()
       }
     },
+  }
+
+  // 热更新时移除已存在的托盘图标，避免重复
+  const existingTray = await TrayIcon.getById('hbcat')
+  if (existingTray) {
+    await existingTray.close()
   }
 
   await TrayIcon.new(trayOptions)
