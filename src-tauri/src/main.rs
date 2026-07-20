@@ -1097,6 +1097,7 @@ async fn main() {
         .run(|app_handle, event| {
             match event {
                 // macOS Dock 图标点击时，如果主窗口隐藏则重新显示
+                #[cfg(target_os = "macos")]
                 RunEvent::Reopen { .. } => {
                     if let Some(window) = app_handle.get_webview_window("main") {
                         let _ = window.show();
