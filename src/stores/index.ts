@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useThrottleFn, useDebounceFn } from "@vueuse/core";
 import { BaseDirectory, exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { useAppSettings } from "./settings";
 
 export interface Device {
   peripheral_id: string;
@@ -92,6 +93,11 @@ export const useBrcatStore = defineStore("brcat", () => {
   /** 尝试自动连接到扫描中出现的已知设备 */
   const tryAutoConnect = async (device: Device) => {
     if (_autoConnectTriggered || is_connected.value) return;
+
+    const appSettings = useAppSettings();
+    await appSettings.load();
+    if (!appSettings.settings.autoConnectEnabled) return;
+
     const lastAddr = await getLastConnectedAddress();
     if (lastAddr && device.address === lastAddr) {
       _autoConnectTriggered = true;
