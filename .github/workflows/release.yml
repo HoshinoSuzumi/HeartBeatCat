@@ -9,7 +9,7 @@ jobs:
   build:
     name: Build (${{ matrix.target }})
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         include:
           - runner: ubuntu-22.04
