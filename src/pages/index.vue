@@ -176,7 +176,9 @@ onMounted(() => {
             </div>
             <TransitionGroup name="scan-device" tag="div" class="flex flex-col gap-2">
               <ScanningDevice v-for="device in knownScanningDevices"
-                :key="device.peripheral_id" :device="device" :is-known="true" @connect="connect" />
+                :key="device.peripheral_id" :device="device" :is-known="true"
+                :is-connecting="store.autoConnectingAddress === device.address"
+                @connect="connect" />
             </TransitionGroup>
           </div>
           <!-- 发现设备 -->
@@ -187,7 +189,9 @@ onMounted(() => {
             </div>
             <TransitionGroup name="scan-device" tag="div" class="flex flex-col gap-2">
               <ScanningDevice v-for="device in newScanningDevices"
-                :key="device.peripheral_id" :device="device" @connect="connect" />
+                :key="device.peripheral_id" :device="device"
+                :is-connecting="store.autoConnectingAddress === device.address"
+                @connect="connect" />
             </TransitionGroup>
           </div>
         </div>

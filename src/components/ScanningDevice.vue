@@ -10,6 +10,10 @@ const props = defineProps({
   isKnown: {
     type: Boolean,
     default: false
+  },
+  isConnecting: {
+    type: Boolean,
+    default: false
   }
 });
 const emit = defineEmits(['connect']);
@@ -34,7 +38,8 @@ const displayAddress = computed(() => {
       </div>
     </div>
     <div class="h-full flex items-center">
-      <button class="btn outline" :disabled="store.is_connected" @click="emit('connect', device.peripheral_id)">连接</button>
+      <SvgSpinnersPulse2 v-if="isConnecting" class="icon text-lg text-primary" />
+      <button v-else class="btn outline" :disabled="store.is_connected" @click="emit('connect', device.peripheral_id)">连接</button>
     </div>
   </div>
 </template>

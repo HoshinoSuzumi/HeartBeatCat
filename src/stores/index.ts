@@ -37,6 +37,9 @@ export const useBrcatStore = defineStore("brcat", () => {
   let _knownLoaded = false;
   let _autoConnectTriggered = false;
 
+  /** 正在自动连接的设备地址（用于列表中显示加载状态） */
+  const autoConnectingAddress = ref<string | null>(null);
+
   const _ensureKnownLoaded = async () => {
     if (_knownLoaded) return;
     _knownLoaded = true;
@@ -101,11 +104,13 @@ export const useBrcatStore = defineStore("brcat", () => {
     const lastAddr = await getLastConnectedAddress();
     if (lastAddr && device.address === lastAddr) {
       _autoConnectTriggered = true;
+      autoConnectingAddress.value = device.address;
       console.log("[Store] 自动连接已知设备:", device.name);
       stopScan();
       invoke("connect", { peripheralId: device.peripheral_id }).catch((errno) => {
         console.error("[Store] 自动连接失败:", errno);
         _autoConnectTriggered = false;
+        autoConnectingAddress.value = null;
         startScan();
       });
     }
@@ -113,6 +118,7 @@ export const useBrcatStore = defineStore("brcat", () => {
 
   const resetAutoConnectFlag = () => {
     _autoConnectTriggered = false;
+    autoConnectingAddress.value = null;
   };
 
   const resetCurrentHeartRate = useDebounceFn(() => {
@@ -184,6 +190,7 @@ export const useBrcatStore = defineStore("brcat", () => {
     connected_device,
     scanning_devices,
     knownDevices,
+    autoConnectingAddress,
     pushDevice,
     startScan,
     stopScan,

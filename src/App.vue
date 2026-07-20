@@ -46,6 +46,7 @@ listen('device-connected', (event) => {
   if (device) {
     store.recordKnownDevice(device)
   }
+  store.resetAutoConnectFlag()
   sessionStore.startSession()
 })
 
