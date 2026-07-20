@@ -1,0 +1,7 @@
+#!/bin/sh
+# Pre-commit: sync version from package.json to tauri.conf.json & Cargo.toml
+
+node scripts/sync-version.mjs
+
+# Stage the synced files if they changed
+git add src-tauri/tauri.conf.json src-tauri/Cargo.toml
