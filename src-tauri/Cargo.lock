@@ -1800,7 +1800,7 @@ dependencies = [
 
 [[package]]
 name = "heartbeat-cat"
-version = "2.0.0-buildtest.6"
+version = "2.0.0-buildtest.7"
 dependencies = [
  "async-stream",
  "btleplug",
