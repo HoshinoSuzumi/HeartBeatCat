@@ -1,10 +1,10 @@
 <script lang="ts" setup>
 import { computed, ref } from 'vue'
-import { useBrcatStore } from '../stores';
+import { useHrcatStore } from '../stores';
 import { useHeartRateHistoryStore } from '../stores/heartRateHistory'
 import MarqueeText from './MarqueeText.vue';
 
-const store = useBrcatStore();
+const store = useHrcatStore();
 const hrStore = useHeartRateHistoryStore()
 
 const deviceName = computed(() =>

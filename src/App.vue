@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { Device, useBrcatStore } from './stores'
+import { Device, useHrcatStore } from './stores'
 import { useSnackbar, Vue3Snackbar } from 'vue3-snackbar'
 import { onBeforeMount, onMounted } from 'vue'
 import { usePluginManager } from './stores/plugin'
@@ -17,7 +17,7 @@ import { Menu } from '@tauri-apps/api/menu'
 import { TrayIcon, TrayIconOptions } from '@tauri-apps/api/tray'
 import { defaultWindowIcon } from '@tauri-apps/api/app'
 
-const store = useBrcatStore()
+const store = useHrcatStore()
 const pluginMgr = usePluginManager()
 const sessionStore = useSessionStore()
 const overlay = useOverlay()

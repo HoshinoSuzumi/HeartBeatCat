@@ -1,10 +1,10 @@
 {
   "manifestVersion": 1,
   "plugin": {
-    "id": "brcat-widget-example",
+    "id": "hrcat-widget-example",
     "name": "HeartBeat Cat 示例插件",
     "version": "0.0.1",
-    "description": "A simple example of a widget using brcat",
+    "description": "A simple example of a widget using hrcat",
     "author": {
       "name": "Timothy Yin",
       "email": "master@uniiem.com"

@@ -22,7 +22,7 @@ interface KnownDeviceRecord {
 
 const KNOWN_DEVICES_PATH = "known_devices.json";
 
-export const useBrcatStore = defineStore("brcat", () => {
+export const useHrcatStore = defineStore("hrcat", () => {
   const scanning_devices = ref<Device[]>([]);
 
   const is_connected = ref(false);

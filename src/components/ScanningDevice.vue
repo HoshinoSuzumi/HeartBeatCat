@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { computed, PropType } from 'vue';
-import { Device, useBrcatStore } from '../stores';
+import { Device, useHrcatStore } from '../stores';
 
 const props = defineProps({
   device: {
@@ -17,7 +17,7 @@ const props = defineProps({
   }
 });
 const emit = defineEmits(['connect']);
-const store = useBrcatStore();
+const store = useHrcatStore();
 
 const displayAddress = computed(() => {
   return props.device.address === '00:00:00:00:00:00' ? (props.device.peripheral_id || 'N/A') : props.device.address;

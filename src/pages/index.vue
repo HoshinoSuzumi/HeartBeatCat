@@ -1,13 +1,13 @@
 <script lang="ts" setup>
 import { invoke } from '@tauri-apps/api/core';
 import { useRouter } from 'vue-router';
-import { useBrcatStore } from '../stores';
+import { useHrcatStore } from '../stores';
 import { useHistoryDrawer } from '../composables/useDrawer';
 import { computed, onMounted, ref } from 'vue';
 import { useSnackbar } from 'vue3-snackbar';
 import { useErrno } from '../composables/useErrno';
 
-const store = useBrcatStore();
+const store = useHrcatStore();
 const router = useRouter();
 const snackbar = useSnackbar();
 const { open: openHistory } = useHistoryDrawer();
