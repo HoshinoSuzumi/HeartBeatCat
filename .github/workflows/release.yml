@@ -94,6 +94,44 @@ jobs:
       - name: Build Tauri app
         run: pnpm tauri build --target ${{ matrix.target }}
 
+      - name: Ad-hoc sign macOS app and recreate DMG
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          APP_DIR="src-tauri/target/${{ matrix.target }}/release/bundle/macos"
+          DMG_DIR="src-tauri/target/${{ matrix.target }}/release/bundle/dmg"
+          APP_NAME="HeartBeatCat"
+
+          echo "Signing .app with ad-hoc signature..."
+          codesign --force --deep --sign - "${APP_DIR}/${APP_NAME}.app"
+          codesign --verify --deep --strict "${APP_DIR}/${APP_NAME}.app"
+          echo "Signature OK"
+
+          echo "Recreating DMG from signed app..."
+          # Remove the old unsigned DMG
+          rm -f "${DMG_DIR}"/*.dmg
+
+          # Determine arch suffix matching Tauri convention
+          TARGET="${{ matrix.target }}"
+          case "$TARGET" in
+            aarch64-*) ARCH="aarch64" ;;
+            x86_64-*)  ARCH="x64" ;;
+            *)         ARCH="unknown" ;;
+          esac
+
+          VERSION="${GITHUB_REF_NAME#v}"
+          DMG_NAME="${APP_NAME}_${VERSION}_${ARCH}.dmg"
+
+          # Create a temporary directory for DMG contents
+          TMP_DMG=$(mktemp -d)
+          cp -R "${APP_DIR}/${APP_NAME}.app" "${TMP_DMG}/"
+          # Create a symlink to /Applications for drag-to-install
+          ln -s /Applications "${TMP_DMG}/Applications"
+
+          hdiutil create -volname "${APP_NAME}" -srcfolder "${TMP_DMG}" -ov -format UDZO "${DMG_DIR}/${DMG_NAME}"
+          rm -rf "${TMP_DMG}"
+          echo "DMG created: ${DMG_DIR}/${DMG_NAME}"
+
       - name: Upload bundle artifacts
         uses: actions/upload-artifact@v4
         with:
