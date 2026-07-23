@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import { sentryVitePlugin } from "@sentry/vite-plugin";
 import vue from "@vitejs/plugin-vue";
 import Components from "unplugin-vue-components/vite";
 
@@ -8,6 +9,11 @@ export default defineConfig(async () => ({
     vue(),
     Components({
       dts: true,
+    }),
+    sentryVitePlugin({
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      org: "rayinesoft",
+      project: "heartbeatcat",
     }),
   ],
 

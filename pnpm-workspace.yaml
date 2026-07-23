@@ -1,4 +1,5 @@
 allowBuilds:
+  '@sentry/cli': true
   esbuild: true
   vue-demi: true
   vue3-snackbar: true

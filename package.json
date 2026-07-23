@@ -12,6 +12,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@sentry/vite-plugin": "^5.4.0",
     "@sentry/vue": "^10.67.0",
     "@tauri-apps/api": "^2.5.0",
     "@tauri-apps/plugin-dialog": "~2",
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.5.0",
+    "@types/node": "^26.1.1",
     "@vitejs/plugin-vue": "^5.0.5",
     "autoprefixer": "^10.4.19",
     "postcss": "^8.4.39",
