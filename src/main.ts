@@ -5,6 +5,7 @@ import { SnackbarService } from "vue3-snackbar";
 import gsap from "gsap";
 import "vue3-snackbar/styles";
 import * as Sentry from "@sentry/vue";
+import pkg from "../package.json";
 
 import App from "./App.vue";
 
@@ -27,29 +28,31 @@ const pinia = createPinia();
 const app = createApp(App);
 app.config.globalProperties.$gsap = gsap;
 
+const isProduction = import.meta.env.MODE === "production";
+
 Sentry.init({
   app,
   dsn: "https://b76abcdc8e7dd7edf2f8d4182f6ddbc4@o4511782624559104.ingest.us.sentry.io/4511782632095744",
-  dataCollection: {
-    // To disable sending user data and HTTP bodies, uncomment the lines below. For more info visit:
-    // https://docs.sentry.io/platforms/javascript/guides/vue/configuration/options/#dataCollection
-    // userInfo: false,
-    // httpBodies: []
-  },
+  release: `heartbeatcat@${pkg.version}`,
+  environment: import.meta.env.MODE,
   integrations: [
     Sentry.browserTracingIntegration({ router }),
-    Sentry.replayIntegration()
+    Sentry.replayIntegration(),
   ],
-  // Tracing
-  tracesSampleRate: 1.0, // Capture 100% of the transactions
-  // Set 'tracePropagationTargets' to control for which URLs distributed tracing should be enabled
-  tracePropagationTargets: ["localhost", /^https:\/\/yourserver\.io\/api/],
+  // Tracing — 生产环境降低采样率以减少事件量
+  tracesSampleRate: isProduction ? 0.1 : 1.0,
   // Session Replay
-  replaysSessionSampleRate: 0.1, // This sets the sample rate at 10%. You may want to change it to 100% while in development and then sample at a lower rate in production.
-  replaysOnErrorSampleRate: 1.0, // If you're not already sampling the entire session, change the sample rate to 100% when sampling sessions where errors occur.,
+  replaysSessionSampleRate: isProduction ? 0.1 : 1.0,
+  replaysOnErrorSampleRate: 1.0,
   // Logs
   enableLogs: true,
-  environment: import.meta.env.MODE,
+  // 忽略不需要关注的错误
+  ignoreErrors: [
+    // 浏览器扩展相关错误
+    /NS_ERROR_FAILURE/,
+    /chrome-extension:/,
+    /moz-extension:/,
+  ],
 });
 
 app.use(router);

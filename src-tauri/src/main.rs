@@ -284,6 +284,18 @@ impl BleConnection {
 }
 
 #[tauri::command]
+fn get_system_username() -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::env::var("USERNAME").map_err(|_| "无法获取系统用户名".into())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        std::env::var("USER").map_err(|_| "无法获取系统用户名".into())
+    }
+}
+
+#[tauri::command]
 async fn register_central_events<'a>(
     app_handle: AppHandle,
     connection: State<'a, BleConnection>,
@@ -1002,6 +1014,7 @@ async fn main() {
         .manage(broadcaster)
         .invoke_handler(tauri::generate_handler![
             register_central_events,
+            get_system_username,
             start_scan,
             stop_scan,
             is_connected,

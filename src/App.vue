@@ -16,6 +16,8 @@ import { window } from '@tauri-apps/api'
 import { Menu } from '@tauri-apps/api/menu'
 import { TrayIcon, TrayIconOptions } from '@tauri-apps/api/tray'
 import { defaultWindowIcon } from '@tauri-apps/api/app'
+import * as Sentry from "@sentry/vue";
+import { useDeviceId } from './composables/useDeviceId';
 
 const store = useHrcatStore()
 const pluginMgr = usePluginManager()
@@ -81,6 +83,11 @@ onMounted(async () => {
 })
 
 onBeforeMount(async () => {
+  // Initialize device ID and set Sentry user context
+  const { init } = useDeviceId();
+  const { deviceId, username } = await init();
+  Sentry.setUser({ id: deviceId, username: username || undefined });
+
   const mainWindow = (await window.getAllWindows()).find(
     (w) => w.label === 'main',
   )
