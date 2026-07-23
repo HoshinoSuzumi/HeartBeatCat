@@ -5,6 +5,7 @@ import { SnackbarService } from "vue3-snackbar";
 import gsap from "gsap";
 import "vue3-snackbar/styles";
 import * as Sentry from "@sentry/vue";
+import { invoke } from "@tauri-apps/api/core";
 import pkg from "../package.json";
 
 import App from "./App.vue";
@@ -56,6 +57,38 @@ Sentry.init({
     /moz-extension:/,
   ],
 });
+
+// 获取系统信息并设置 Sentry 设备/OS 上下文
+invoke<{ os_name: string; os_version: string; arch: string; hostname: string; processor_count: number; manufacturer: string; model: string }>("get_system_info")
+  .then((sysInfo) => {
+    Sentry.setContext("os", {
+      name: sysInfo.os_name,
+      version: sysInfo.os_version,
+    });
+    Sentry.setContext("device", {
+      manufacturer: sysInfo.manufacturer,
+      model: sysInfo.model,
+      arch: sysInfo.arch,
+      hostname: sysInfo.hostname,
+      screen_resolution: `${window.screen.width}x${window.screen.height}`,
+      processor_count: sysInfo.processor_count,
+      screen_width_pixels: window.screen.width,
+      screen_height_pixels: window.screen.height,
+      language: navigator.language,
+    });
+  })
+  .catch(() => {
+    // 降级：仅使用 Web API 获取基本信息
+    Sentry.setContext("os", {
+      name: navigator.platform,
+    });
+    Sentry.setContext("device", {
+      screen_resolution: `${window.screen.width}x${window.screen.height}`,
+      screen_width_pixels: window.screen.width,
+      screen_height_pixels: window.screen.height,
+      language: navigator.language,
+    });
+  });
 
 app.use(router);
 app.use(pinia);

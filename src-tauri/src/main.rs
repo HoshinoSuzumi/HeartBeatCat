@@ -295,6 +295,115 @@ fn get_system_username() -> Result<String, String> {
     }
 }
 
+#[derive(serde::Serialize)]
+struct SystemInfo {
+    os_name: String,
+    os_version: String,
+    arch: String,
+    hostname: String,
+    processor_count: u32,
+    manufacturer: String,
+    model: String,
+}
+
+/// 获取硬件型号标识符（跨平台）
+fn get_hardware_model() -> String {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("sysctl")
+            .args(["-n", "hw.model"])
+            .output()
+            .ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .map(|s| s.trim().to_string())
+            .unwrap_or_else(|| "unknown".to_string())
+    }
+    #[cfg(target_os = "linux")]
+    {
+        // 尝试 /sys 文件系统
+        std::fs::read_to_string("/sys/devices/virtual/dmi/id/product_name")
+            .map(|s| s.trim().to_string())
+            .or_else(|_| {
+                std::fs::read_to_string("/sys/devices/virtual/dmi/id/product_version")
+                    .map(|s| s.trim().to_string())
+            })
+            .unwrap_or_else(|_| "unknown".to_string())
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("wmic")
+            .args(["csproduct", "get", "name", "/value"])
+            .output()
+            .ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .and_then(|s| {
+                s.lines()
+                    .find_map(|l| l.strip_prefix("Name=").map(|v| v.trim().to_string()))
+            })
+            .unwrap_or_else(|| "unknown".to_string())
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        "unknown".to_string()
+    }
+}
+
+/// 获取制造商名称
+fn get_manufacturer() -> String {
+    #[cfg(target_os = "macos")]
+    {
+        "Apple Inc.".to_string()
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::fs::read_to_string("/sys/devices/virtual/dmi/id/sys_vendor")
+            .map(|s| s.trim().to_string())
+            .unwrap_or_else(|_| "unknown".to_string())
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("wmic")
+            .args(["csproduct", "get", "vendor", "/value"])
+            .output()
+            .ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .and_then(|s| {
+                s.lines()
+                    .find_map(|l| l.strip_prefix("Vendor=").map(|v| v.trim().to_string()))
+            })
+            .unwrap_or_else(|| "unknown".to_string())
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        "unknown".to_string()
+    }
+}
+
+#[tauri::command]
+fn get_system_info() -> Result<SystemInfo, String> {
+    let info = os_info::get();
+
+    let hostname = std::process::Command::new("hostname")
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+
+    let processor_count =
+        std::thread::available_parallelism().map(|n| n.get() as u32).unwrap_or(0);
+
+    Ok(SystemInfo {
+        os_name: std::env::consts::OS.to_string(),
+        os_version: info.version().to_string(),
+        arch: std::env::consts::ARCH.to_string(),
+        hostname,
+        processor_count,
+        manufacturer: get_manufacturer(),
+        model: get_hardware_model(),
+    })
+}
+
 #[tauri::command]
 async fn register_central_events<'a>(
     app_handle: AppHandle,
@@ -1015,6 +1124,7 @@ async fn main() {
         .invoke_handler(tauri::generate_handler![
             register_central_events,
             get_system_username,
+            get_system_info,
             start_scan,
             stop_scan,
             is_connected,

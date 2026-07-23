@@ -29,6 +29,7 @@ zip = "2"
 async-stream = "0.3"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+os_info = "3"
 
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
