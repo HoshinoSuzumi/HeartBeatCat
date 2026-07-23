@@ -5,6 +5,9 @@ import Components from "unplugin-vue-components/vite";
 
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({
+  build: {
+    sourcemap: 'hidden' as const,
+  },
   plugins: [
     vue(),
     Components({
@@ -14,9 +17,15 @@ export default defineConfig(async () => ({
       authToken: process.env.SENTRY_AUTH_TOKEN,
       org: "rayinesoft",
       project: "heartbeatcat",
+      sourcemaps: {
+        filesToDeleteAfterUpload: [
+          "./**/*.map",
+          ".*/**/public/**/*.map",
+          "./dist/**/client/**/*.map",
+        ],
+      },
     }),
   ],
-
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent vite from obscuring rust errors
