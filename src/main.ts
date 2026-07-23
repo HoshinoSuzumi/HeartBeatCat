@@ -39,7 +39,9 @@ Sentry.init({
     Sentry.browserTracingIntegration({ router }),
     Sentry.replayIntegration(),
   ],
-  // Tracing — 生产环境降低采样率以减少事件量
+  // Error Reporting
+  sampleRate: 1.0,
+  // Performance Monitoring
   tracesSampleRate: isProduction ? 0.1 : 1.0,
   // Session Replay
   replaysSessionSampleRate: isProduction ? 0.1 : 1.0,
