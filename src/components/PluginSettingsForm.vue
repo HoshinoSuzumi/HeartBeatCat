@@ -1,5 +1,8 @@
 <script lang="ts" setup>
 import { ref, watch, computed } from 'vue'
+import UiNumberInput from './UiNumberInput.vue'
+import UiSelect from './UiSelect.vue'
+import UiTextInput from './UiTextInput.vue'
 import UiToggle from './UiToggle.vue'
 
 interface SchemaProperty {
@@ -49,6 +52,11 @@ const emitChange = () => {
   emit('update', { ...localConfig.value })
 }
 
+const updateField = (key: string, value: unknown) => {
+  localConfig.value[key] = value
+  emitChange()
+}
+
 const properties = computed(() => {
   if (!props.schema.properties) return []
   return Object.entries(props.schema.properties).map(([key, prop]) => ({
@@ -60,51 +68,54 @@ const properties = computed(() => {
 const hasEnum = (prop: SchemaProperty) => Array.isArray(prop.enum) && prop.enum.length > 0
 const isNumber = (prop: SchemaProperty) => prop.type === 'number' || prop.type === 'integer'
 const isBoolean = (prop: SchemaProperty) => prop.type === 'boolean'
+const selectValue = (value: unknown) => typeof value === 'string' || typeof value === 'number' ? value : undefined
+const numberValue = (value: unknown) => typeof value === 'number' ? value : undefined
+const optionsFor = (prop: SchemaProperty) => prop.enum?.map((value, index) => ({
+  value,
+  label: prop.enumLabels?.[index] ?? String(value),
+})) ?? []
 </script>
 
 <template>
   <div class="space-y-3" v-if="properties.length > 0">
-    <div v-for="prop in properties" :key="prop.key" class="flex flex-col gap-1">
-      <label v-if="!isBoolean(prop)" class="text-xs font-medium text-neutral-600">{{ prop.title ?? prop.key }}</label>
+    <div v-for="(prop, index) in properties" :key="prop.key" class="flex flex-col gap-1">
+      <label v-if="!isBoolean(prop)" :for="`plugin-setting-${index}`" class="text-xs font-medium text-neutral-600">{{ prop.title ?? prop.key }}</label>
 
-      <!-- string + enum → select -->
-      <select
+      <UiSelect
         v-if="hasEnum(prop)"
-        class="text-xs border border-neutral-300 rounded px-2 py-1 bg-white"
-        :value="localConfig[prop.key]"
-        @change="localConfig[prop.key] = ($event.target as HTMLSelectElement).value; emitChange()"
-      >
-        <option v-for="(opt, index) in prop.enum" :key="String(opt)" :value="opt">{{ prop.enumLabels?.[index] ?? opt }}</option>
-      </select>
-
-      <!-- number / integer → input[number] -->
-      <input
-        v-else-if="isNumber(prop)"
-        type="number"
-        class="text-xs border border-neutral-300 rounded px-2 py-1"
-        :min="prop.minimum"
-        :max="prop.maximum"
-        :value="localConfig[prop.key]"
-        @input="localConfig[prop.key] = Number(($event.target as HTMLInputElement).value); emitChange()"
+        :id="`plugin-setting-${index}`"
+        :label="prop.title ?? prop.key"
+        :options="optionsFor(prop)"
+        :model-value="selectValue(localConfig[prop.key])"
+        @update:model-value="updateField(prop.key, $event)"
       />
 
-      <!-- boolean → switch -->
-      <div v-else-if="isBoolean(prop)" class="flex items-center justify-between gap-3">
+      <UiNumberInput
+        v-else-if="isNumber(prop)"
+        :id="`plugin-setting-${index}`"
+        :label="prop.title ?? prop.key"
+        :min="prop.minimum"
+        :max="prop.maximum"
+        :step="prop.type === 'integer' ? 1 : 'any'"
+        :model-value="numberValue(localConfig[prop.key])"
+        @update:model-value="updateField(prop.key, $event)"
+      />
+
+      <div v-else-if="isBoolean(prop)" class="flex min-h-8 items-center justify-between gap-3">
         <span class="text-xs font-medium text-neutral-600">{{ prop.title ?? prop.key }}</span>
         <UiToggle
           :label="prop.title ?? prop.key"
           :model-value="!!localConfig[prop.key]"
-          @update:model-value="localConfig[prop.key] = $event; emitChange()"
+          @update:model-value="updateField(prop.key, $event)"
         />
       </div>
 
-      <!-- default: text input -->
-      <input
+      <UiTextInput
         v-else
-        type="text"
-        class="text-xs border border-neutral-300 rounded px-2 py-1"
-        :value="localConfig[prop.key]"
-        @input="localConfig[prop.key] = ($event.target as HTMLInputElement).value; emitChange()"
+        :id="`plugin-setting-${index}`"
+        :label="prop.title ?? prop.key"
+        :model-value="String(localConfig[prop.key] ?? '')"
+        @update:model-value="updateField(prop.key, $event)"
       />
     </div>
   </div>
