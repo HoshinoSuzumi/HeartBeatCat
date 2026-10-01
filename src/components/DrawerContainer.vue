@@ -13,10 +13,10 @@ const deviceName = computed(() =>
 
 const hrStats = computed(() => {
   const s = hrStore.stats
-  // stats 中的 latest/max/min 是当前会话全部数据，直接用即可
+  // stats 保留本次采集中的有效心率统计，短暂间隙不会清空最低值。
   return {
     max: s.max > 0 ? s.max : null,
-    min: s.max > 0 ? s.min : null,
+    min: s.min > 0 ? s.min : null,
   }
 })
 

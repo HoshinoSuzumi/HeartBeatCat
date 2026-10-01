@@ -13,6 +13,7 @@ const DEFAULT_MAX_POINTS = 900
 export const useHeartRateHistoryStore = defineStore("heartRateHistory", () => {
   const points = ref<HeartRatePoint[]>([])
   const maxPoints = ref(DEFAULT_MAX_POINTS)
+  const validStats = ref({ count: 0, sum: 0, min: 0, max: 0, latest: 0 })
 
   // ── 自动从 Tauri 事件采集心率数据 ──
   let unlisten: (() => void) | null = null
@@ -46,6 +47,16 @@ export const useHeartRateHistoryStore = defineStore("heartRateHistory", () => {
   const push = (value: number, ts?: number) => {
     const now = ts ?? Date.now()
     points.value = [...points.value, { timestamp: now, value }].slice(-maxPoints.value)
+    if (Number.isFinite(value) && value > 0) {
+      const previous = validStats.value
+      validStats.value = {
+        count: previous.count + 1,
+        sum: previous.sum + value,
+        min: previous.count === 0 ? value : Math.min(previous.min, value),
+        max: Math.max(previous.max, value),
+        latest: value,
+      }
+    }
   }
 
   /** 插入指定时间戳的数据点（用于断连 0 值标记） */
@@ -62,18 +73,33 @@ export const useHeartRateHistoryStore = defineStore("heartRateHistory", () => {
   // ── 清空数据 ──
   const clear = () => {
     points.value = []
+    validStats.value = { count: 0, sum: 0, min: 0, max: 0, latest: 0 }
+    lastPushTime = 0
   }
 
   // ── 统计信息 ──
   const stats = computed(() => {
-    const vals = points.value.map((p) => p.value)
-    if (vals.length === 0) return { avg: 0, min: 0, max: 0, latest: 0 }
-    const sum = vals.reduce((a, b) => a + b, 0)
+    // 有效值在本次采集期间累计，断连间隙和环形缓冲区滚动不会重置最低值。
+    const { count, sum, min, max, latest } = validStats.value
+    // 热更新等情况下缓存可能先于累计值存在，仍以现有有效数据提供统计。
+    const vals = points.value
+      .map((p) => p.value)
+      .filter((value) => Number.isFinite(value) && value > 0)
+    if (count === 0) {
+      if (vals.length > 0) {
+        return {
+          avg: Math.round(vals.reduce((a, b) => a + b, 0) / vals.length),
+          min: Math.min(...vals),
+          max: Math.max(...vals),
+          latest: vals[vals.length - 1],
+        }
+      }
+    }
     return {
-      avg: Math.round(sum / vals.length),
-      min: Math.min(...vals),
-      max: Math.max(...vals),
-      latest: vals[vals.length - 1],
+      avg: count > 0 ? Math.round(sum / count) : 0,
+      min: vals.length > 0 ? Math.min(min, ...vals) : min,
+      max: vals.length > 0 ? Math.max(max, ...vals) : max,
+      latest,
     }
   })
 

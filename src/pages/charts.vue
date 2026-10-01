@@ -18,9 +18,10 @@ const selectedRange = ref(300)
 const visibleData = computed(() => store.getPointsInRange(selectedRange.value))
 
 const rangeStats = computed(() => {
-  const pts = visibleData.value
-  if (pts.length === 0) return { avg: 0, min: 0, max: 0, latest: 0 }
-  const vals = pts.map((p) => p.value)
+  const vals = visibleData.value
+    .map((p) => p.value)
+    .filter((value) => Number.isFinite(value) && value > 0)
+  if (vals.length === 0) return { avg: 0, min: 0, max: 0, latest: 0 }
   return {
     avg: Math.round(vals.reduce((a, b) => a + b, 0) / vals.length),
     min: Math.min(...vals),
@@ -29,7 +30,7 @@ const rangeStats = computed(() => {
   }
 })
 
-const hasData = computed(() => store.points.length > 0)
+const hasData = computed(() => rangeStats.value.latest > 0)
 </script>
 
 <template>

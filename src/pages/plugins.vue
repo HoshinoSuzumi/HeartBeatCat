@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { usePluginManager } from '../stores/plugin'
 import { getAllWebviewWindows } from '@tauri-apps/api/webviewWindow'
@@ -16,6 +16,7 @@ const dialog = useConfirmDialog()
 const snackbar = useSnackbar()
 
 const selectedId = ref<string | null>(null)
+const showPluginId = ref(false)
 const activeTab = ref<'widget' | 'streaming' | 'settings'>('widget')
 const serverPort = ref(19918)
 
@@ -39,6 +40,8 @@ const selectedPlugin = computed(() => {
   if (!selectedId.value) return null
   return pluginList.value.find(p => p.manifest.plugin.id === selectedId.value) ?? null
 })
+
+watch(selectedId, () => { showPluginId.value = false })
 
 // ── 选中插件时重置 tab ──
 const selectPlugin = (id: string) => {
@@ -368,16 +371,27 @@ onMounted(() => {
             <!-- 基本信息 -->
             <div class="mb-4">
               <h2 class="text-base font-semibold">{{ selectedPlugin.manifest.plugin.name }}</h2>
-              <p class="text-xs text-neutral-400 mt-0.5">{{ selectedPlugin.manifest.plugin.id }}</p>
+              <button
+                type="button"
+                class="mt-0.5 flex max-w-full items-center gap-3 text-left text-xs text-neutral-400 hover:text-neutral-500"
+                :title="showPluginId ? '点击查看版本和作者' : '点击查看插件 ID'"
+                :aria-label="showPluginId ? '点击查看版本和作者' : '点击查看插件 ID'"
+                @click="showPluginId = !showPluginId"
+              >
+                <span v-if="selectedPlugin.builtin" class="shrink-0 rounded bg-neutral-100 px-1 py-px text-[10px] text-neutral-400">内置插件</span>
+                <template v-if="showPluginId">
+                  <span class="truncate">{{ selectedPlugin.manifest.plugin.id }}</span>
+                </template>
+                <template v-else>
+                  <span class="shrink-0">v{{ selectedPlugin.manifest.plugin.version }}</span>
+                  <span v-if="selectedPlugin.manifest.plugin.author?.name" class="truncate">
+                    {{ selectedPlugin.manifest.plugin.author.name }}
+                  </span>
+                </template>
+              </button>
               <p v-if="selectedPlugin.manifest.plugin.description" class="text-sm text-neutral-500 mt-1">
                 {{ selectedPlugin.manifest.plugin.description }}
               </p>
-              <div class="flex items-center gap-3 mt-1 text-xs text-neutral-400">
-                <span>v{{ selectedPlugin.manifest.plugin.version }}</span>
-                <span v-if="selectedPlugin.manifest.plugin.author?.name">
-                  {{ selectedPlugin.manifest.plugin.author.name }}
-                </span>
-              </div>
               <div class="mt-3" v-if="!selectedPlugin.builtin">
                 <button class="btn outline text-xs text-red-500 border-red-300 hover:bg-red-50" @click="promptUninstall(selectedPlugin.manifest.plugin.id)">
                   卸载插件
