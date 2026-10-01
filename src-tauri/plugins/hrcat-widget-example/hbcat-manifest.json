@@ -3,7 +3,7 @@
   "plugin": {
     "id": "hrcat-widget-example",
     "name": "HeartBeat Cat 示例插件",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "A simple example of a widget using hrcat",
     "author": {
       "name": "Timothy Yin",
@@ -31,15 +31,10 @@
       },
       "maxHR": {
         "type": "number",
-        "minimum": 60,
-        "maximum": 240,
+        "minimum": 100,
+        "maximum": 255,
         "default": 200,
         "title": "最大心率"
-      },
-      "showStatusBar": {
-        "type": "boolean",
-        "default": true,
-        "title": "显示状态栏"
       }
     }
   },

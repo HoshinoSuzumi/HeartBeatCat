@@ -9,6 +9,7 @@ use futures::StreamExt;
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::error::Error;
+use std::path::{Component, Path};
 use std::sync::Arc;
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Emitter, Listener, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder};
@@ -46,6 +47,38 @@ fn resolve_appdata(app_handle: &AppHandle, sub_path: &str) -> std::path::PathBuf
     }
     // 非 Windows 或环境变量缺失时回退到 Tauri 内置解析
     app_handle.path().resolve(sub_path, BaseDirectory::AppData).unwrap()
+}
+
+fn valid_plugin_id(id: &str) -> bool {
+    id.bytes().next().is_some_and(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+        && id.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-' || c == b'_')
+}
+
+fn ensure_plugin_id(id: &str) -> Result<(), String> {
+    if valid_plugin_id(id) { Ok(()) } else { Err("无效的插件 ID".to_string()) }
+}
+
+fn safe_plugin_path(path: &str) -> bool {
+    !path.is_empty()
+        && !path.contains('\\')
+        && !path.contains(':')
+        && path.split('/').all(|part| !part.is_empty() && part != "." && part != "..")
+        && Path::new(path).components().all(|part| matches!(part, Component::Normal(_)))
+}
+
+#[cfg(test)]
+mod plugin_path_tests {
+    use super::{safe_plugin_path, valid_plugin_id};
+
+    #[test]
+    fn accepts_packaged_assets_and_rejects_escaping_paths() {
+        assert!(valid_plugin_id("hrcat-widget-example"));
+        assert!(!valid_plugin_id("../other"));
+        assert!(safe_plugin_path("widget/assets/image.png"));
+        for path in ["../secret", "widget/../secret", "/absolute", "C:/secret", "widget\\secret", "widget//image.png"] {
+            assert!(!safe_plugin_path(path), "accepted {path}");
+        }
+    }
 }
 
 #[derive(serde::Serialize, Clone, Debug)]
@@ -576,6 +609,9 @@ async fn open_widget(
     port: State<'_, ServerPort>,
 ) -> Result<bool, String> {
     info!("Opening widget for plugin: {}", plugin_id);
+    if !valid_plugin_id(&plugin_id) {
+        return Err("无效的插件 ID".to_string());
+    }
     let label = format!("widget_{}", plugin_id);
 
     // 检查窗口是否已存在
@@ -590,7 +626,7 @@ async fn open_widget(
     let resource_plugins = app_handle.path().resolve("plugins", BaseDirectory::Resource).unwrap();
     let appdata_plugins = resolve_appdata(&app_handle, "plugins");
 
-    let plugin_dir = if appdata_plugins.join(&plugin_id).exists() {
+    let plugin_dir = if appdata_plugins.join(&plugin_id).join("hbcat-manifest.json").exists() {
         debug!("Using appdata plugin directory for: {}", plugin_id);
         appdata_plugins.join(&plugin_id)
     } else if resource_plugins.join(&plugin_id).exists() {
@@ -621,6 +657,9 @@ async fn open_widget(
         })?;
     let entry = widget["entry"].as_str()
         .unwrap_or("widget/index.html");
+    if !safe_plugin_path(entry) {
+        return Err("无效的桌面组件入口路径".to_string());
+    }
     let window_cfg = &widget["window"];
 
     let width = window_cfg["width"].as_f64().unwrap_or(200.0);
@@ -692,6 +731,7 @@ async fn close_widget(
     plugin_id: String,
     app_handle: AppHandle,
 ) -> Result<bool, String> {
+    ensure_plugin_id(&plugin_id)?;
     info!("Closing widget for plugin: {}", plugin_id);
     let label = format!("widget_{}", plugin_id);
     if let Some(window) = app_handle.get_webview_window(&label) {
@@ -774,6 +814,7 @@ async fn start_streaming(
     plugin_id: String,
     broadcaster: State<'_, SseBroadcaster>,
 ) -> Result<bool, String> {
+    ensure_plugin_id(&plugin_id)?;
     info!("Starting streaming for plugin: {}", plugin_id);
     broadcaster.activate(&plugin_id).await;
     Ok(true)
@@ -784,6 +825,7 @@ async fn stop_streaming(
     plugin_id: String,
     broadcaster: State<'_, SseBroadcaster>,
 ) -> Result<bool, String> {
+    ensure_plugin_id(&plugin_id)?;
     info!("Stopping streaming for plugin: {}", plugin_id);
     broadcaster.deactivate(&plugin_id).await;
     Ok(true)
@@ -791,6 +833,7 @@ async fn stop_streaming(
 
 #[tauri::command]
 fn get_streaming_url(plugin_id: String, port: State<'_, ServerPort>) -> Result<String, String> {
+    ensure_plugin_id(&plugin_id)?;
     let url = format!("http://127.0.0.1:{}/p/{}/streaming/index.html", port.0, plugin_id);
     debug!("Streaming URL for {}: {}", plugin_id, url);
     Ok(url)
@@ -806,6 +849,7 @@ async fn get_plugin_config(
     plugin_id: String,
     app_handle: AppHandle,
 ) -> Result<serde_json::Value, String> {
+    ensure_plugin_id(&plugin_id)?;
     debug!("Getting config for plugin: {}", plugin_id);
     let config_dir = resolve_appdata(&app_handle, "plugin-config");
     std::fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
@@ -824,6 +868,7 @@ async fn set_plugin_config(
     config: serde_json::Value,
     app_handle: AppHandle,
 ) -> Result<bool, String> {
+    ensure_plugin_id(&plugin_id)?;
     debug!("Setting config for plugin: {}", plugin_id);
     let config_dir = resolve_appdata(&app_handle, "plugin-config");
     std::fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
@@ -887,7 +932,7 @@ async fn install_plugin(
     for i in 0..archive.len() {
         let entry = archive.by_index(i).map_err(|e| e.to_string())?;
         let name = entry.name().to_string();
-        if name == "hbcat-manifest.json" || name.ends_with("/hbcat-manifest.json") {
+        if name == "hbcat-manifest.json" {
             let content = std::io::read_to_string(entry).map_err(|e| e.to_string())?;
             manifest = Some(serde_json::from_str(&content).map_err(|e| format!("manifest 格式错误: {}", e))?);
             break;
@@ -901,6 +946,9 @@ async fn install_plugin(
     let plugin_id = manifest["plugin"]["id"].as_str()
         .ok_or("manifest 缺少 plugin.id")?
         .to_string();
+    if !valid_plugin_id(&plugin_id) {
+        return Err("manifest 中的 plugin.id 无效".to_string());
+    }
     let plugin_name = manifest["plugin"]["name"].as_str().unwrap_or(&plugin_id);
     let new_version = manifest["plugin"]["version"].as_str().unwrap_or("0.0.0");
 
@@ -942,6 +990,15 @@ async fn install_plugin(
         }
     }
 
+    // 安装前校验整个压缩包，避免覆盖旧版本后才发现非法路径。
+    for i in 0..archive.len() {
+        let entry = archive.by_index(i).map_err(|e| e.to_string())?;
+        let name = entry.name().trim_end_matches('/');
+        if !safe_plugin_path(name) || entry.enclosed_name().is_none() {
+            return Err(format!("插件包包含非法路径: {}", entry.name()));
+        }
+    }
+
     // ── 执行安装 ──
     if target_dir.exists() {
         info!("Overwriting existing plugin directory for: {}", plugin_id);
@@ -954,8 +1011,7 @@ async fn install_plugin(
 
     for i in 0..total_entries {
         let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
-        let name = entry.name().to_string();
-        let target_path = target_dir.join(&name);
+        let target_path = target_dir.join(entry.enclosed_name().ok_or("插件包包含非法路径")?);
 
         if entry.is_dir() {
             std::fs::create_dir_all(&target_path).map_err(|e| e.to_string())?;
@@ -1055,6 +1111,7 @@ async fn uninstall_plugin(
     plugin_id: String,
     app_handle: AppHandle,
 ) -> Result<bool, String> {
+    ensure_plugin_id(&plugin_id)?;
     info!("Uninstalling plugin: {}", plugin_id);
     let plugins_dir = resolve_appdata(&app_handle, "plugins");
     let plugin_dir = plugins_dir.join(&plugin_id);
@@ -1198,26 +1255,34 @@ async fn main() {
                             let ap = ap.clone();
                             async move {
                                 let tail_str = tail.as_str();
+                                if !valid_plugin_id(&plugin_id) || !safe_plugin_path(tail_str) {
+                                    return Err(warp::reject::not_found());
+                                }
                                 // 排除 API 路径，让它们被前面的路由处理
                                 if tail_str == "events" || tail_str == "config" {
                                     return Err(warp::reject::not_found());
                                 }
-                                let appdata_file = ap.join(&plugin_id).join(tail_str);
-                                let _resource_file = rp.join(&plugin_id).join(tail_str);
-
-                                let base = if appdata_file.exists() {
-                                    ap.join(&plugin_id)
+                                let appdata_plugin = ap.join(&plugin_id);
+                                let base = if appdata_plugin.join("hbcat-manifest.json").exists() {
+                                    appdata_plugin
                                 } else {
                                     rp.join(&plugin_id)
                                 };
-
                                 let full = base.join(tail_str);
+                                let (Ok(base), Ok(full)) = (
+                                    tokio::fs::canonicalize(&base).await,
+                                    tokio::fs::canonicalize(&full).await,
+                                ) else {
+                                    return Err(warp::reject::not_found());
+                                };
+                                if !full.starts_with(&base) {
+                                    return Err(warp::reject::not_found());
+                                }
                                 match tokio::fs::read(&full).await {
                                     Ok(data) => {
                                         let mime = mime_guess::from_path(tail_str).first_or_octet_stream();
                                         Ok::<_, warp::Rejection>(warp::http::Response::builder()
                                             .header("Content-Type", mime.to_string())
-                                            .header("Access-Control-Allow-Origin", "*")
                                             .body(data)
                                             .unwrap())
                                     }
@@ -1237,6 +1302,9 @@ async fn main() {
                         .and_then(move |plugin_id: String| {
                             let bc = bc.clone();
                             async move {
+                                if !valid_plugin_id(&plugin_id) {
+                                    return Err(warp::reject::not_found());
+                                }
                                 if !bc.is_active(&plugin_id).await {
                                     debug!("SSE connection rejected: streaming not active for plugin {}", plugin_id);
                                     return Err(warp::reject::not_found());
@@ -1290,19 +1358,24 @@ async fn main() {
                         .and(warp::path::param::<String>())
                         .and(warp::path("config"))
                         .and(warp::path::end())
-                        .map(move |plugin_id: String| {
-                            let config_dir = appdata_plugins.join("..").join("plugin-config");
-                            let config_path = config_dir.join(format!("{}.json", plugin_id));
-                            let body = if config_path.exists() {
-                                std::fs::read_to_string(&config_path).unwrap_or_else(|_| "{}".to_string())
-                            } else {
-                                "{}".to_string()
-                            };
-                            warp::http::Response::builder()
-                                .header("Content-Type", "application/json")
-                                .header("Access-Control-Allow-Origin", "*")
-                                .body(body)
-                                .unwrap()
+                        .and_then(move |plugin_id: String| {
+                            let appdata_plugins = appdata_plugins.clone();
+                            async move {
+                                if !valid_plugin_id(&plugin_id) {
+                                    return Err(warp::reject::not_found());
+                                }
+                                let config_dir = appdata_plugins.join("..").join("plugin-config");
+                                let config_path = config_dir.join(format!("{}.json", plugin_id));
+                                let body = if config_path.exists() {
+                                    std::fs::read_to_string(&config_path).unwrap_or_else(|_| "{}".to_string())
+                                } else {
+                                    "{}".to_string()
+                                };
+                                Ok::<_, warp::Rejection>(warp::http::Response::builder()
+                                    .header("Content-Type", "application/json")
+                                    .body(body)
+                                    .unwrap())
+                            }
                         });
 
                     // /api/status — 全局状态
@@ -1316,7 +1389,6 @@ async fn main() {
                             });
                             warp::http::Response::builder()
                                 .header("Content-Type", "application/json")
-                                .header("Access-Control-Allow-Origin", "*")
                                 .body(status.to_string())
                                 .unwrap()
                         });
