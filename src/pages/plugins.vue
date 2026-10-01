@@ -9,6 +9,8 @@ import { openPath } from '@tauri-apps/plugin-opener'
 import { open } from '@tauri-apps/plugin-dialog'
 import type { LoadedPlugin, PluginManifest } from '../types/plugin'
 import PluginSettingsForm from '../components/PluginSettingsForm.vue'
+import UiSlider from '../components/UiSlider.vue'
+import UiToggle from '../components/UiToggle.vue'
 import { useConfirmDialog } from '../composables/useConfirmDialog'
 
 const pluginMgr = usePluginManager()
@@ -255,16 +257,15 @@ const saveRuntimeConfig = async (pluginId: string) => {
   } catch { /* ignore */ }
 }
 
-const onToggleClickThrough = async (plugin: { manifest: PluginManifest; state: any }) => {
+const onToggleWidgetLock = async (plugin: { manifest: PluginManifest; state: any }, locked: boolean) => {
   const id = plugin.manifest.plugin.id
-  const next = !plugin.state.clickThrough
-  pluginMgr.setClickThrough(id, next)
+  pluginMgr.setClickThrough(id, locked)
   try {
-    await invoke('set_widget_click_through', { pluginId: id, clickThrough: next })
+    await invoke('set_widget_click_through', { pluginId: id, clickThrough: locked })
     saveRuntimeConfig(id)
   } catch (e) {
-    pluginMgr.setClickThrough(id, !next)
-    snackbar.add({ type: 'error', text: `设置失败: ${e}` })
+    pluginMgr.setClickThrough(id, !locked)
+    snackbar.add({ type: 'error', text: `${locked ? '锁定' : '解锁'}组件失败: ${e}` })
   }
 }
 
@@ -373,7 +374,7 @@ onMounted(() => {
               <h2 class="text-base font-semibold">{{ selectedPlugin.manifest.plugin.name }}</h2>
               <button
                 type="button"
-                class="mt-0.5 flex max-w-full items-center gap-3 text-left text-xs text-neutral-400 hover:text-neutral-500"
+                class="mt-0.5 flex max-w-full items-center gap-1.5 text-left text-xs text-neutral-400 hover:text-neutral-500"
                 :title="showPluginId ? '点击查看版本和作者' : '点击查看插件 ID'"
                 :aria-label="showPluginId ? '点击查看版本和作者' : '点击查看插件 ID'"
                 @click="showPluginId = !showPluginId"
@@ -422,6 +423,7 @@ onMounted(() => {
                 推流插件
               </button>
               <button
+                v-if="selectedPlugin.manifest.settings || (!selectedPlugin.manifest.widget && !selectedPlugin.manifest.streaming)"
                 class="px-3 py-1.5 text-xs font-medium transition-colors border-b-2 -mb-px"
                 :class="activeTab === 'settings'
                   ? 'border-primary-400 text-primary-500'
@@ -445,38 +447,37 @@ onMounted(() => {
                 </button>
               </div>
 
-              <!-- 组件信息 -->
               <div class="rounded-lg border border-neutral-200 p-3">
-                <h4 class="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">窗口信息</h4>
-                <div class="grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <span class="text-neutral-400">尺寸</span>
-                    <p class="text-neutral-700 font-medium">{{ selectedPlugin.manifest.widget.window.width }} × {{ selectedPlugin.manifest.widget.window.height }}</p>
-                  </div>
-                  <div>
-                    <span class="text-neutral-400">当前缩放</span>
-                    <p class="text-neutral-700 font-medium">{{ selectedPlugin.state.scale.toFixed(1) }}×</p>
-                  </div>
-                  <div>
-                    <span class="text-neutral-400">置顶</span>
-                    <p class="text-neutral-700 font-medium">{{ selectedPlugin.manifest.widget.window.alwaysOnTop ? '是' : '否' }}</p>
-                  </div>
-                  <div>
-                    <span class="text-neutral-400">透明背景</span>
-                    <p class="text-neutral-700 font-medium">{{ selectedPlugin.manifest.widget.window.transparent ? '是' : '否' }}</p>
-                  </div>
+                <h4 class="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-3">显示设置</h4>
+                <div class="grid grid-cols-[56px_1fr_42px] items-center gap-3 mb-3">
+                  <span class="text-xs text-neutral-600">大小</span>
+                  <UiSlider
+                    label="大小"
+                    :model-value="selectedPlugin.state.scale"
+                    :min="0.5" :max="5" :step="0.1"
+                    @update:model-value="onChangeScale(selectedPlugin, $event)"
+                  />
+                  <span class="text-right text-xs tabular-nums text-neutral-500">{{ selectedPlugin.state.scale.toFixed(1) }}×</span>
                 </div>
-              </div>
-
-              <!-- 运行时设置提示 -->
-              <div class="rounded-lg border border-neutral-200 p-3 bg-neutral-50/50">
-                <div class="flex items-center justify-between">
-                  <div>
-                    <h4 class="text-xs font-semibold text-neutral-500">外观与交互</h4>
-                    <p class="text-2xs text-neutral-400 mt-0.5">透明度、缩放等设置</p>
-                  </div>
-                  <button class="btn outline text-xs py-1" @click="activeTab = 'settings'">前往设置</button>
+                <div class="grid grid-cols-[56px_1fr_42px] items-center gap-3 mb-3">
+                  <span class="text-xs text-neutral-600">透明度</span>
+                  <UiSlider
+                    label="透明度"
+                    :model-value="selectedPlugin.state.opacity"
+                    :min="0.2" :max="1" :step="0.05"
+                    @update:model-value="onChangeOpacity(selectedPlugin, $event)"
+                  />
+                  <span class="text-right text-xs tabular-nums text-neutral-500">{{ Math.round(selectedPlugin.state.opacity * 100) }}%</span>
                 </div>
+                <div class="flex items-center justify-between gap-3 text-xs text-neutral-600">
+                  <span>锁定组件</span>
+                  <UiToggle
+                    label="锁定组件"
+                    :model-value="selectedPlugin.state.clickThrough"
+                    @update:model-value="onToggleWidgetLock(selectedPlugin, $event)"
+                  />
+                </div>
+                <p v-if="selectedPlugin.state.clickThrough" class="mt-2 text-xs text-neutral-400">解锁后可拖动组件</p>
               </div>
             </div>
 
@@ -508,47 +509,6 @@ onMounted(() => {
 
             <!-- Settings Tab -->
             <div v-if="activeTab === 'settings'" class="space-y-2">
-              <!-- 通用设置 -->
-              <div v-if="selectedPlugin.manifest.widget" class="border border-neutral-200 rounded p-3">
-                <h4 class="text-xs font-semibold text-neutral-600 mb-2">通用设置</h4>
-                <div class="space-y-2">
-                  <label class="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      class="rounded"
-                      :checked="selectedPlugin.state.clickThrough"
-                      @change="onToggleClickThrough(selectedPlugin)"
-                    />
-                    <span class="text-xs text-neutral-600">点击穿透</span>
-                  </label>
-                  <p class="text-2xs text-neutral-400">开启后鼠标事件将穿透组件窗口</p>
-                  <div class="flex items-center gap-2">
-                    <span class="text-xs text-neutral-600 w-16">透明度</span>
-                    <input
-                      type="range"
-                      min="0.2"
-                      max="1.0"
-                      step="0.05"
-                      class="flex-1"
-                      :value="selectedPlugin.state.opacity"
-                      @input="onChangeOpacity(selectedPlugin, Number(($event.target as HTMLInputElement).value))"
-                    />
-                    <span class="text-xs text-neutral-400 w-8 text-right">{{ Math.round(selectedPlugin.state.opacity * 100) }}%</span>
-                  </div>                  <div class="flex items-center gap-2">
-                    <span class="text-xs text-neutral-600 w-16">缩放</span>
-                    <input
-                      type="range"
-                      min="0.5"
-                      max="5.0"
-                      step="0.1"
-                      class="flex-1"
-                      :value="selectedPlugin.state.scale"
-                      @input="onChangeScale(selectedPlugin, Number(($event.target as HTMLInputElement).value))"
-                    />
-                    <span class="text-xs text-neutral-400 w-8 text-right">{{ selectedPlugin.state.scale.toFixed(1) }}×</span>
-                  </div>                </div>
-              </div>
-
               <!-- 插件自定义设置 -->
               <div v-if="selectedPlugin.manifest.settings" class="border border-neutral-200 rounded p-3">
                 <h4 class="text-xs font-semibold text-neutral-600 mb-2">插件设置</h4>
@@ -559,7 +519,7 @@ onMounted(() => {
                 />
               </div>
 
-              <div v-if="!selectedPlugin.manifest.widget && !selectedPlugin.manifest.settings" class="text-xs text-neutral-400">
+              <div v-if="!selectedPlugin.manifest.settings" class="text-xs text-neutral-400">
                 此插件没有可配置项
               </div>
             </div>

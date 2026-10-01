@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { ref, watch, computed } from 'vue'
+import UiToggle from './UiToggle.vue'
 
 interface SchemaProperty {
   type: string
@@ -63,7 +64,7 @@ const isBoolean = (prop: SchemaProperty) => prop.type === 'boolean'
 <template>
   <div class="space-y-3" v-if="properties.length > 0">
     <div v-for="prop in properties" :key="prop.key" class="flex flex-col gap-1">
-      <label class="text-xs font-medium text-neutral-600">{{ prop.title ?? prop.key }}</label>
+      <label v-if="!isBoolean(prop)" class="text-xs font-medium text-neutral-600">{{ prop.title ?? prop.key }}</label>
 
       <!-- string + enum → select -->
       <select
@@ -86,16 +87,15 @@ const isBoolean = (prop: SchemaProperty) => prop.type === 'boolean'
         @input="localConfig[prop.key] = Number(($event.target as HTMLInputElement).value); emitChange()"
       />
 
-      <!-- boolean → checkbox -->
-      <label v-else-if="isBoolean(prop)" class="flex items-center gap-2 cursor-pointer">
-        <input
-          type="checkbox"
-          class="rounded"
-          :checked="!!localConfig[prop.key]"
-          @change="localConfig[prop.key] = ($event.target as HTMLInputElement).checked; emitChange()"
+      <!-- boolean → switch -->
+      <div v-else-if="isBoolean(prop)" class="flex items-center justify-between gap-3">
+        <span class="text-xs font-medium text-neutral-600">{{ prop.title ?? prop.key }}</span>
+        <UiToggle
+          :label="prop.title ?? prop.key"
+          :model-value="!!localConfig[prop.key]"
+          @update:model-value="localConfig[prop.key] = $event; emitChange()"
         />
-        <span class="text-xs text-neutral-500">{{ localConfig[prop.key] ? '开启' : '关闭' }}</span>
-      </label>
+      </div>
 
       <!-- default: text input -->
       <input

@@ -43,5 +43,7 @@ declare module 'vue' {
     TablerReload: typeof import('./src/components/icons/TablerReload.vue')['default']
     TablerSearch: typeof import('./src/components/icons/TablerSearch.vue')['default']
     TipsCarousel: typeof import('./src/components/TipsCarousel.vue')['default']
+    UiSlider: typeof import('./src/components/UiSlider.vue')['default']
+    UiToggle: typeof import('./src/components/UiToggle.vue')['default']
   }
 }
