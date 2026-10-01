@@ -7,6 +7,7 @@ interface SchemaProperty {
   title?: string
   default?: unknown
   enum?: (string | number)[]
+  enumLabels?: string[]
   minimum?: number
   maximum?: number
 }
@@ -73,7 +74,7 @@ const isBoolean = (prop: SchemaProperty) => prop.type === 'boolean'
         :value="localConfig[prop.key]"
         @change="localConfig[prop.key] = ($event.target as HTMLSelectElement).value; emitChange()"
       >
-        <option v-for="opt in prop.enum" :key="String(opt)" :value="opt">{{ opt }}</option>
+        <option v-for="(opt, index) in prop.enum" :key="String(opt)" :value="opt">{{ prop.enumLabels?.[index] ?? opt }}</option>
       </select>
 
       <!-- number / integer → input[number] -->
